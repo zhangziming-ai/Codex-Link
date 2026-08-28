@@ -1,8 +1,12 @@
 # Codex Link
 
-Codex Link 是为 Codex 用户构建的开源跨设备工作流工具。它可以在本机审计 Codex 工作环境，创建可验证的备份恢复点，并在 Windows 与 macOS 场景中辅助迁移和恢复会话、配置、Skills 与相关本地数据。
+Codex Link 是为 Codex 本地环境迁移痛点而生的开源工具。换电脑、重装系统、跨 Windows 与 macOS 工作时，Codex 的对话、项目索引、规则、记忆和 Skills 往往分散在本地；直接复制目录又容易带来路径错乱、SQLite 状态风险和凭据安全问题。Codex Link 提供可预览、可校验、可回滚的备份与恢复流程。
 
 Codex Link 是独立开源项目，与 OpenAI 无从属关系，也未获得 OpenAI 背书。
+
+![Codex Link 真实界面截图](docs/assets/screenshots/overview.png)
+
+先看痛点与真实界面案例：查看 [3 分钟图文上手](docs/QUICK_START.zh-CN.md)。
 
 ## 下载
 

@@ -1,12 +1,14 @@
 # Codex Link
 
-Codex Link is an open-source cross-device workflow tool built for Codex users. It audits a local Codex working environment, creates verifiable backup restore points, and helps move local Codex sessions, settings, Skills, and related data across Windows and macOS workflows.
+Codex Link is an open-source tool built for a specific Codex pain point: local Codex environments are valuable, but they are hard to move safely. Conversations, project indexes, rules, memories, settings, and Skills live across local files and databases; direct folder copying can carry broken paths, SQLite state risks, and credential concerns. Codex Link provides a previewable, verifiable, rollback-protected backup and restore flow for Windows and macOS workflows.
 
 Codex Link is an independent open-source project and is not affiliated with or endorsed by OpenAI.
 
+![Codex Link real interface screenshot](docs/assets/screenshots/overview.png)
+
 Languages: [English](README.md) | [简体中文](README.zh-CN.md)
 
-Project links: [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [License](LICENSE)
+Project links: [Chinese quick start](docs/QUICK_START.zh-CN.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [License](LICENSE)
 
 Downloads for v1.0.0:
 
