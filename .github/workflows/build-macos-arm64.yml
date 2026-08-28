@@ -1,0 +1,71 @@
+name: Build macOS Apple Silicon
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Sign and notarize with configured repository secrets
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-arm64:
+    name: macOS arm64 package and verification
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      CODEX_LINK_MAC_RELEASE: ${{ inputs.release && '1' || '0' }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Confirm Apple Silicon runner
+        run: |
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "arm64"
+          sw_vers
+
+      - name: Build and verify DMG, ZIP and app
+        run: |
+          chmod +x scripts/build-macos-arm64.sh
+          npm run package:mac:arm64
+
+      - name: Create SHA-256 checksums
+        run: |
+          shasum -a 256 dist/Codex-Link-*-mac-arm64.dmg dist/Codex-Link-*-mac-arm64.zip > dist/Codex-Link-mac-arm64-SHA256.txt
+
+      - name: Publish verification summary
+        run: |
+          cat qa/reports/macos-arm64-release-latest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Apple Silicon packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: Codex-Link-mac-arm64-${{ github.run_number }}
+          path: |
+            dist/Codex-Link-*-mac-arm64.dmg
+            dist/Codex-Link-*-mac-arm64.zip
+            dist/Codex-Link-mac-arm64-SHA256.txt
+            qa/reports/macos-arm64-release-latest.json
+            qa/reports/macos-arm64-release-latest.md
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Link 按钮状态板</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <style>
+      .board-page { min-height: 100vh; padding: 32px; color: #16181d; background: linear-gradient(120deg, rgba(34,103,242,.08), transparent 34%, rgba(255,138,61,.08)), #f4f4f6; }
+      .board-shell { max-width: 1320px; margin: 0 auto; padding: 28px; border: 1px solid rgba(255,255,255,.9); border-radius: 22px; background: rgba(255,255,255,.68); box-shadow: 0 24px 64px rgba(37,44,58,.12), inset 0 1px 0 #fff; backdrop-filter: blur(26px); }
+      .board-header h1 { margin: 0; font-size: 32px; }
+      .board-header p { margin: 8px 0 24px; color: #626872; }
+      .board-row { display: grid; grid-template-columns: 170px repeat(5, minmax(0,1fr)); gap: 14px; align-items: center; padding: 18px 0; border-top: 1px solid rgba(42,49,62,.08); }
+      .board-row:first-of-type { border-top: 0; }
+      .board-label strong, .board-label small, .state-name { display: block; }
+      .board-label small, .state-name { color: #9298a2; font-size: 12px; }
+      .state-cell { display: grid; justify-items: start; gap: 10px; min-width: 0; }
+      .state-hover { transform: translateY(-2px) !important; filter: brightness(1.05); }
+      .state-pressed { transform: translateY(2px) !important; box-shadow: inset 0 4px 8px rgba(15,59,149,.3), 0 2px 5px rgba(26,63,139,.2) !important; }
+      .state-focus { outline: 3px solid #2267f2 !important; outline-offset: 3px; }
+      .danger-solid { border-color: rgba(255,255,255,.9) !important; background: linear-gradient(135deg,#f26672,#ff8a6d) !important; color: #fff !important; box-shadow: inset 0 2px 1px rgba(255,255,255,.55), inset 0 -4px 7px rgba(150,42,54,.25), 0 4px 9px rgba(145,38,49,.24), 0 18px 32px rgba(242,102,114,.26) !important; }
+      .board-toggle { width: 100%; max-width: 220px; min-height: 62px; }
+      .icon-pair { display: flex; gap: 8px; }
+      @media (max-width: 1120px) { body { min-width: 1121px; } }
+    </style>
+  </head>
+  <body class="board-page">
+    <main class="board-shell">
+      <header class="board-header">
+        <h1>Codex Link 按钮状态板</h1>
+        <p>基准版实体玻璃控制器：默认、悬停、按下、禁用与 3px 聚焦环。</p>
+      </header>
+
+      <section class="board-row">
+        <div class="board-label"><strong>Primary</strong><small>48px · 蓝青流光</small></div>
+        <div class="state-cell"><span class="state-name">默认</span><button class="button primary"><span class="button-icon"><i data-lucide="archive"></i></span><span>创建备份</span></button></div>
+        <div class="state-cell"><span class="state-name">悬停</span><button class="button primary state-hover"><span class="button-icon"><i data-lucide="archive"></i></span><span>创建备份</span></button></div>
+        <div class="state-cell"><span class="state-name">按下</span><button class="button primary state-pressed"><span class="button-icon"><i data-lucide="archive"></i></span><span>创建备份</span></button></div>
+        <div class="state-cell"><span class="state-name">禁用</span><button class="button primary" disabled><span class="button-icon"><i data-lucide="archive"></i></span><span>创建备份</span></button></div>
+        <div class="state-cell"><span class="state-name">聚焦</span><button class="button primary state-focus"><span class="button-icon"><i data-lucide="archive"></i></span><span>创建备份</span></button></div>
+      </section>
+
+      <section class="board-row">
+        <div class="board-label"><strong>Secondary</strong><small>44px · 白色磨砂</small></div>
+        <div class="state-cell"><span class="state-name">默认</span><button class="button secondary"><span class="button-icon"><i data-lucide="list-checks"></i></span><span>预览计划</span></button></div>
+        <div class="state-cell"><span class="state-name">悬停</span><button class="button secondary state-hover"><span class="button-icon"><i data-lucide="list-checks"></i></span><span>预览计划</span></button></div>
+        <div class="state-cell"><span class="state-name">按下</span><button class="button secondary state-pressed"><span class="button-icon"><i data-lucide="list-checks"></i></span><span>预览计划</span></button></div>
+        <div class="state-cell"><span class="state-name">禁用</span><button class="button secondary" disabled><span class="button-icon"><i data-lucide="list-checks"></i></span><span>预览计划</span></button></div>
+        <div class="state-cell"><span class="state-name">聚焦</span><button class="button secondary state-focus"><span class="button-icon"><i data-lucide="list-checks"></i></span><span>预览计划</span></button></div>
+      </section>
+
+      <section class="board-row">
+        <div class="board-label"><strong>Destructive</strong><small>44px · 珊瑚风险</small></div>
+        <div class="state-cell"><span class="state-name">默认</span><button class="mini-button danger">确认删除</button></div>
+        <div class="state-cell"><span class="state-name">悬停</span><button class="mini-button danger state-hover">确认删除</button></div>
+        <div class="state-cell"><span class="state-name">按下</span><button class="mini-button danger state-pressed">确认删除</button></div>
+        <div class="state-cell"><span class="state-name">禁用</span><button class="mini-button danger" disabled>确认删除</button></div>
+        <div class="state-cell"><span class="state-name">最终确认</span><button class="mini-button danger-solid">确认删除</button></div>
+      </section>
+
+      <section class="board-row">
+        <div class="board-label"><strong>Icon Button</strong><small>44 x 44 · Lucide</small></div>
+        <div class="state-cell"><span class="state-name">默认</span><div class="icon-pair"><button class="icon-button" title="搜索"><i data-lucide="search"></i></button><button class="icon-button" title="刷新"><i data-lucide="refresh-cw"></i></button></div></div>
+        <div class="state-cell"><span class="state-name">悬停</span><button class="icon-button state-hover"><i data-lucide="folder-open"></i></button></div>
+        <div class="state-cell"><span class="state-name">按下</span><button class="icon-button state-pressed"><i data-lucide="settings"></i></button></div>
+        <div class="state-cell"><span class="state-name">禁用</span><button class="icon-button" disabled><i data-lucide="refresh-cw"></i></button></div>
+        <div class="state-cell"><span class="state-name">聚焦</span><button class="icon-button state-focus"><i data-lucide="folder-open"></i></button></div>
+      </section>
+
+      <section class="board-row">
+        <div class="board-label"><strong>Toggle</strong><small>48 x 28 · 玻璃旋钮</small></div>
+        <div class="state-cell"><span class="state-name">开启</span><label class="toggle-row board-toggle"><span><strong>自动回滚</strong></span><input type="checkbox" checked /><i></i></label></div>
+        <div class="state-cell"><span class="state-name">关闭</span><label class="toggle-row board-toggle"><span><strong>自动回滚</strong></span><input type="checkbox" /><i></i></label></div>
+        <div class="state-cell"><span class="state-name">悬停</span><label class="toggle-row board-toggle state-hover"><span><strong>跨系统适配</strong></span><input type="checkbox" checked /><i></i></label></div>
+        <div class="state-cell"><span class="state-name">禁用</span><label class="toggle-row board-toggle"><span><strong>高风险排除</strong></span><input type="checkbox" disabled /><i></i></label></div>
+        <div class="state-cell"><span class="state-name">聚焦</span><label class="toggle-row board-toggle state-focus"><span><strong>自动回滚</strong></span><input type="checkbox" checked /><i></i></label></div>
+      </section>
+    </main>
+    <script>lucide.createIcons({ attrs: { "stroke-width": 1.8 } });</script>
+  </body>
+</html>

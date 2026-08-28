@@ -1,0 +1,58 @@
+{
+  "reviewer": "",
+  "reviewerRole": "independent",
+  "confirmedIndependent": false,
+  "reviewedAt": "",
+  "notes": "请由未参与开发的体验者完成，不能由实现者自行猜测分数。",
+  "participants": [
+    { "id": "P01", "targetUser": true, "firstTimeUser": true },
+    { "id": "P02", "targetUser": true, "firstTimeUser": true },
+    { "id": "P03", "targetUser": true, "firstTimeUser": true },
+    { "id": "P04", "targetUser": false, "firstTimeUser": true },
+    { "id": "P05", "targetUser": false, "firstTimeUser": true }
+  ],
+  "artifacts": [
+    {
+      "type": "screen-recording-or-notes",
+      "pathOrUrl": "",
+      "description": ""
+    }
+  ],
+  "scores": {
+    "productValue": {
+      "score": null,
+      "max": 4,
+      "evidence": "访谈至少 3 位目标用户，记录其是否认同本地备份与恢复价值。"
+    },
+    "coreReliability": {
+      "score": null,
+      "max": 5,
+      "evidence": "在独立测试目录完成备份、破坏测试数据、恢复、逐文件比对与回滚。"
+    },
+    "usability": {
+      "score": null,
+      "max": 7,
+      "evidence": "至少 5 位首次使用者，无口头指导完成创建备份与从备份恢复。"
+    },
+    "informationArchitecture": {
+      "score": null,
+      "max": 2,
+      "evidence": "记录用户寻找备份文件夹、恢复点、安全检查和高级选项的位置是否符合预期。"
+    },
+    "trustAndSafety": {
+      "score": null,
+      "max": 5,
+      "evidence": "询问用户是否清楚将备份什么、不会备份什么、恢复会修改什么以及如何回滚。"
+    },
+    "visualExperience": {
+      "score": null,
+      "max": 4,
+      "evidence": "在 1280x720 与 1440x1000 对照基准稿，检查层级、材质、颜色语义、对比度和按钮状态。"
+    },
+    "userSatisfaction": {
+      "score": null,
+      "max": 5,
+      "evidence": "汇总 SUS、任务满意度和恢复信任度；建议 SUS >= 80，信任度 >= 4/5。"
+    }
+  }
+}

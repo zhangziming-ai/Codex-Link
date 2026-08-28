@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Link v1.0</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/vendor/lucide.min.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="window-controls" aria-hidden="true">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <img class="brand-mark-motion" src="assets/brand-glass-motion.gif" alt="">
+            <span class="brand-mark-letters">CL</span>
+          </div>
+          <div>
+            <div class="brand-name">Codex Link</div>
+            <div class="brand-subtitle">本地备份与恢复控制台</div>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-item active" data-view="overview" type="button">
+            <span class="nav-icon" aria-hidden="true"><i data-lucide="house"></i></span>
+            <span>总览</span>
+          </button>
+          <button class="nav-item" data-view="backup" type="button">
+            <span class="nav-icon" aria-hidden="true"><i data-lucide="archive"></i></span>
+            <span>创建备份</span>
+          </button>
+          <button class="nav-item" data-view="restore" type="button">
+            <span class="nav-icon" aria-hidden="true"><i data-lucide="refresh-cw"></i></span>
+            <span>从备份恢复</span>
+          </button>
+          <button class="nav-item" data-view="manager" type="button">
+            <span class="nav-icon" aria-hidden="true"><i data-lucide="folder-open"></i></span>
+            <span>备份管理</span>
+            <span class="nav-count" id="navBackupCount">-</span>
+          </button>
+          <button class="nav-item" data-view="settings" type="button">
+            <span class="nav-icon" aria-hidden="true"><i data-lucide="settings"></i></span>
+            <span>设置</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-status-card">
+          <span class="sidebar-disk-icon" aria-hidden="true"><i data-lucide="hard-drive"></i></span>
+          <div class="sidebar-disk-copy">
+            <strong id="sidebarDiskName">本地磁盘</strong>
+            <small id="sidebarDiskCapacity">正在读取容量</small>
+          </div>
+          <div class="mini-progress" aria-label="磁盘使用情况"><span id="sidebarDiskProgress"></span></div>
+          <div class="sidebar-run-row">
+            <span class="sidebar-run-state" id="sidebarRunState">等待扫描</span>
+            <button class="sidebar-retry-button semantic-action action-scan" id="sidebarRetryButton" type="button" aria-label="重新扫描" title="重新扫描">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+          </div>
+          <span class="visually-hidden" id="statusText">等待扫描</span>
+          <span class="visually-hidden" id="statusDot" aria-hidden="true"></span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="viewEyebrow">Local backup</p>
+            <h1 id="viewTitle">总览</h1>
+            <p id="viewSubtitle">查看本机 Codex 数据状态，并完成创建备份或从备份恢复。</p>
+          </div>
+          <div class="top-actions">
+            <button class="button secondary top-refresh-button semantic-action action-scan" id="refreshButton" type="button">
+              <span class="button-icon" aria-hidden="true"><i data-lucide="scan-line"></i></span>
+              <span>重新扫描</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="view active" id="overview">
+          <div class="home-hero">
+            <div class="hero-copy">
+              <p class="hero-kicker">本地备份状态</p>
+              <h2 id="homeHeroTitle">正在读取备份状态</h2>
+              <p id="homeHeroMessage">正在确认备份文件夹和最近备份恢复点。</p>
+              <div class="home-console-status" id="homeConsoleStatus"></div>
+            </div>
+          </div>
+
+          <div class="overview-layout compact-overview">
+            <section class="panel asset-panel">
+              <span class="visually-hidden" id="homeCodexPath"></span>
+              <div class="asset-grid" id="assetCards"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="backup">
+          <div class="split-layout">
+            <section class="panel backup-work-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>创建备份</h2>
+                  <p>用最短路径创建一份推荐备份。插件缓存、本地工具、登录凭据默认不包含。</p>
+                </div>
+              </div>
+
+              <label class="field">
+                  <span>备份文件夹</span>
+                <div class="inline-input">
+                  <input id="backupDirInput" />
+                  <button class="mini-button semantic-action action-folder" data-open-folder-picker type="button">选择文件夹</button>
+                </div>
+              </label>
+
+              <div class="backup-location" id="backupLocationCard"></div>
+
+              <div class="content-summary">
+                <div class="section-title-row">
+                  <div>
+                    <h2>默认备份方案</h2>
+                    <p>底部“预览计划”和“创建备份”以这里勾选的内容为准。</p>
+                    <p class="backup-portability-note">将保存项目名称、项目路径和对话归属，但不包含项目目录中的代码与素材文件。</p>
+                  </div>
+                  <div class="default-plan-actions">
+                    <span class="badge p0">主方案</span>
+                    <button class="mini-button semantic-action action-adjust" id="selectAllDefaultButton" type="button">一键全选</button>
+                    <button class="mini-button semantic-action action-reset" id="resetRecommendedButton" type="button">恢复推荐</button>
+                  </div>
+                </div>
+                <div class="check-grid" id="includeOptions"></div>
+              </div>
+
+              <details class="advanced-box">
+                <summary>高级选项 · 精细备份与方案调整</summary>
+
+                <div class="advanced-category-grid" id="advancedCategoryGrid"></div>
+                <div class="advanced-risk-note">
+                  <i data-lucide="shield-alert" aria-hidden="true"></i>
+                  <div>
+                    <strong>敏感内容仍保持保护</strong>
+                    <p>API 接入只保存 Provider、工具名称、使用项目和重新配置说明；密钥与登录凭据不会写入备份。</p>
+                  </div>
+                </div>
+              </details>
+
+              <div class="action-row page-action-bar">
+                <div class="action-context" id="backupActionContext" aria-live="polite">
+                  <strong>正在读取备份内容</strong>
+                  <span>敏感内容默认保持排除</span>
+                </div>
+                <button class="button secondary semantic-action action-preview" id="previewBackupButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="list-checks"></i></span>
+                  <span>预览计划</span>
+                </button>
+                <button class="button primary semantic-action action-backup" id="createBackupButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="archive"></i></span>
+                  <span>创建备份</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="panel backup-result-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>执行结果</h2>
+                  <p>预览或创建后会显示恢复点路径、包含内容和大小。</p>
+                </div>
+              </div>
+              <div class="result-visual" id="backupResultVisual" aria-live="polite">
+                <div>
+                  <span id="backupResultVisualKicker">Backup output</span>
+                  <strong id="backupResultVisualTitle">等待生成</strong>
+                  <p id="backupResultVisualBody">恢复点路径、包含内容、大小和提醒会在这里汇总。</p>
+                  <div class="backup-progress" id="backupProgress" hidden>
+                    <div class="backup-progress-track" role="progressbar" aria-label="备份进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                      <span class="backup-progress-fill" id="backupProgressFill"></span>
+                      <b class="backup-progress-percent" id="backupProgressPercent">0%</b>
+                    </div>
+                    <small id="backupProgressEta">正在估算剩余时间</small>
+                  </div>
+                  <div class="backup-time-status" id="backupTimeStatus" hidden>
+                    <span><i data-lucide="timer" aria-hidden="true"></i><b id="backupTimeEstimate">预计用时</b></span>
+                    <span id="backupTimeElapsed">已用 0 秒</span>
+                    <small>实际时间受磁盘速度和小文件数量影响</small>
+                  </div>
+                </div>
+                <i data-lucide="file-check-2" aria-hidden="true"></i>
+              </div>
+              <div class="result-summary" id="backupResultSummary"></div>
+              <div class="result-panel collapsed" id="backupResultPanel">
+                <div class="result-toolbar">
+                  <span>详细计划</span>
+                  <button class="mini-button semantic-action action-preview" id="toggleBackupResultButton" type="button">展开</button>
+                </div>
+                <pre class="result-box" id="backupResult">尚未创建计划。</pre>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="restore">
+          <div class="restore-layout">
+            <section class="panel restore-form-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>从备份恢复</h2>
+                  <p>选择一个已有恢复点文件夹，先生成可读计划，再按本机环境处理。</p>
+                </div>
+              </div>
+
+              <label class="field">
+                <span>恢复点文件夹</span>
+                <div class="inline-input">
+                  <input id="restoreSnapshotInput" aria-describedby="restoreSnapshotHint" placeholder="选择或粘贴恢复点文件夹路径" />
+                  <button class="mini-button semantic-action action-restore" data-view-button="manager" type="button">从备份管理选择</button>
+                </div>
+                <small class="field-hint" id="restoreSnapshotHint">先选择备份文件夹，再从其中的历史恢复点进入恢复。</small>
+              </label>
+
+              <section class="deploy-mode restore-environment-mode">
+                <div>
+                  <h2>恢复环境</h2>
+                  <p>建议先在独立测试环境验证；正式恢复会写入当前 Codex 主目录。</p>
+                </div>
+                <div class="mode-grid" role="radiogroup" aria-label="恢复环境">
+                  <label class="mode-option">
+                    <input type="radio" name="restoreEnvironmentMode" value="isolated_test" checked />
+                    <span>独立测试环境</span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="restoreEnvironmentMode" value="formal" />
+                    <span>正式 Codex 数据</span>
+                  </label>
+                </div>
+                <div class="action-row">
+                  <button class="mini-button semantic-action action-adjust" id="prepareTestEnvironmentButton" type="button">新建测试环境</button>
+                  <button class="mini-button danger" id="deleteTestEnvironmentButton" type="button" hidden>删除测试环境</button>
+                </div>
+                <small class="field-hint" id="restoreEnvironmentHint">首次生成计划时会自动创建隔离的 Codex 主目录和项目目录。</small>
+              </section>
+
+              <label class="field">
+                <span>恢复到 Codex 主目录</span>
+                <input id="restoreTargetInput" />
+              </label>
+
+              <section class="restore-selection-panel" id="restoreSelectionPanel" aria-labelledby="restoreSelectionTitle">
+                <div class="restore-selection-header">
+                  <div>
+                    <span class="restore-selection-kicker">恢复内容</span>
+                    <h2 id="restoreSelectionTitle">选择项目及其对话记录</h2>
+                    <p id="restoreSelectionMeta">读取恢复点后，可整组选项目，也可只勾选项目下的某些对话。</p>
+                  </div>
+                  <div class="restore-selection-actions">
+                    <button class="mini-button semantic-action action-adjust" id="restoreSelectAllButton" type="button" disabled>一键全选</button>
+                    <button class="mini-button semantic-action action-reset" id="restoreClearButton" type="button" disabled>清空</button>
+                  </div>
+                </div>
+                <label class="restore-selection-search" id="restoreSelectionSearchWrap" hidden>
+                  <i data-lucide="search" aria-hidden="true"></i>
+                  <input id="restoreSelectionSearch" type="search" placeholder="搜索项目、对话标题、Skills 或备份类别" autocomplete="off" />
+                </label>
+                <div class="restore-selection-empty" id="restoreSelectionEmpty">
+                  <i data-lucide="list-checks" aria-hidden="true"></i>
+                  <span>尚未读取恢复点内容</span>
+                </div>
+                <div class="restore-selection-groups" id="restoreSelectionGroups" hidden></div>
+                <p class="restore-selection-note" id="restoreSelectionNote">选择对话时会自动合并对应线程索引；“完整任务索引”仅用于明确需要整库替换的高级恢复。</p>
+              </section>
+
+              <div class="deploy-mode">
+                <div>
+                  <h2>目标系统</h2>
+                  <p>跨系统时会提示路径、工具和授权差异。</p>
+                </div>
+                <div class="mode-grid" role="radiogroup" aria-label="目标系统">
+                  <label class="mode-option">
+                    <input type="radio" name="restoreTargetOS" value="auto" checked />
+                    <span>当前系统</span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="restoreTargetOS" value="windows" />
+                    <span>Windows</span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="restoreTargetOS" value="macos" />
+                    <span>macOS</span>
+                  </label>
+                  <label class="mode-option">
+                    <input type="radio" name="restoreTargetOS" value="linux" />
+                    <span>Linux</span>
+                  </label>
+                </div>
+                <div class="restore-target-hint" id="restoreTargetHint" aria-live="polite"></div>
+              </div>
+              <section class="project-mapping-panel" id="projectMappingPanel" hidden>
+                <div class="project-mapping-header">
+                  <div>
+                    <span class="restore-selection-kicker">项目路径适配</span>
+                    <h2>确认每个项目在目标系统的位置</h2>
+                    <p>只改写项目归属和本地索引路径，不修改对话正文。未包含项目代码时可创建占位目录或保留为未关联。</p>
+                  </div>
+                </div>
+                <div class="project-mapping-batch">
+                  <input id="projectMappingBaseInput" placeholder="批量目标根目录，例如 /Users/name/Projects" />
+                  <button class="mini-button semantic-action action-adjust" id="projectMappingBatchButton" type="button">按项目名自动匹配</button>
+                </div>
+                <div class="project-mapping-list" id="projectMappingList"></div>
+                <p class="restore-selection-note">必须处理全部项目后重新生成计划；多个源项目不能指向同一目标目录。</p>
+              </section>
+
+
+              <details class="restore-technical-details restore-database-advanced">
+                <summary><span><i data-lucide="database" aria-hidden="true"></i>高级数据库恢复方式</span></summary>
+                <div class="form-grid">
+                  <label class="field">
+                    <span>任务索引处理</span>
+                    <select id="databaseRestoreMode">
+                      <option value="merge" selected>按 thread ID 合并（推荐）</option>
+                      <option value="replace">整库替换（危险）</option>
+                    </select>
+                  </label>
+                  <label class="switch-row" id="databaseReplaceConfirmRow" hidden>
+                    <input type="checkbox" id="confirmDatabaseReplace" />
+                    <span><b>我确认整库替换会删除目标端独有任务索引</b><small>仅在明确需要恢复完整旧数据库时使用；执行前仍会再次确认。</small></span>
+                  </label>
+                </div>
+              </details>
+
+              <div class="protection-box">
+                <h2>恢复保护</h2>
+                <div class="protection-list">
+                  <span class="protection-success"><i data-lucide="shield-check"></i> 恢复前创建本机回滚备份</span>
+                  <span><i data-lucide="folder-input"></i> 先进入临时恢复区</span>
+                  <span class="protection-risk"><i data-lucide="key-round"></i> API Key 与登录凭据重新配置</span>
+                </div>
+              </div>
+
+              <div class="action-row restore-action-row">
+                <button class="button primary semantic-action action-restore" id="restorePlanButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="route"></i></span>
+                  <span>校验并生成计划</span>
+                </button>
+                <button class="button primary semantic-action action-risk" id="restoreExecuteButton" type="button" hidden>
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
+                  <span>开始恢复</span>
+                </button>
+              </div>
+              <div class="backup-progress restore-progress" id="restoreProgress" hidden aria-live="polite">
+                <div class="backup-progress-track" role="progressbar" aria-label="恢复进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                  <span class="backup-progress-fill" id="restoreProgressFill"></span>
+                  <b class="backup-progress-percent" id="restoreProgressPercent">0%</b>
+                </div>
+                <small id="restoreProgressEta">等待开始恢复</small>
+              </div>
+            </section>
+
+            <section class="panel restore-summary-panel is-empty">
+              <div class="panel-header">
+                <div>
+                  <h2>恢复摘要</h2>
+                  <p>先校验恢复点，确认后执行恢复；失败时自动回退。</p>
+                </div>
+              </div>
+              <div class="result-summary" id="restoreSummary"></div>
+              <div class="restore-plan-overview" id="restorePlanOverview">
+                <div class="restore-overview-empty">
+                  <i data-lucide="list-tree" aria-hidden="true"></i>
+                  <span>读取恢复点后，这里会显示恢复范围、目标系统和风险提醒。</span>
+                </div>
+              </div>
+              <details class="restore-technical-details" id="restoreTechnicalDetails">
+                <summary>
+                  <span><i data-lucide="braces" aria-hidden="true"></i>技术详情</span>
+                  <small>诊断时使用</small>
+                  <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </summary>
+                <pre class="result-box tall" id="restoreResult">等待选择备份文件夹。</pre>
+              </details>
+              <div class="action-row diagnostic-export-actions" id="diagnosticExportActions" hidden>
+                <button class="mini-button semantic-action action-adjust" id="exportDiagnosticJsonButton" type="button">导出 JSON 报告</button>
+                <button class="mini-button semantic-action action-adjust" id="exportDiagnosticMarkdownButton" type="button">导出 Markdown 报告</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="manager">
+          <div class="manager-layout">
+            <section class="panel manager-folder-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>备份文件夹</h2>
+                  <p>查看或更换用于保存恢复点的备份文件夹。</p>
+                </div>
+                <button class="mini-button manager-refresh-button semantic-action action-scan" id="loadBackupsButton" type="button">刷新</button>
+              </div>
+              <div class="backup-location" id="managerLocationCard"></div>
+            </section>
+
+            <section class="panel manager-safety-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>安全状态</h2>
+                  <p>恢复前需要确认的路径、授权和凭据。</p>
+                </div>
+              </div>
+              <div id="managerSafetySummary"></div>
+            </section>
+
+            <section class="panel manager-history-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>备份恢复点</h2>
+                  <p>从备份恢复点再次恢复，或删除误创建的备份。</p>
+                </div>
+              </div>
+              <div class="snapshot-list" id="backupList"></div>
+            </section>
+
+            <section class="panel manager-detail-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>备份恢复点详情</h2>
+                  <p>查看最近备份恢复点的来源、大小与再次恢复操作。</p>
+                </div>
+              </div>
+              <div id="managerBackupDetail"></div>
+            </section>
+
+            <section class="panel manager-history-panel manager-rollback-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>事务回滚点</h2>
+                  <p>撤销一次已经完成的恢复事务；与再次恢复备份是两种不同操作。</p>
+                </div>
+              </div>
+              <div class="snapshot-list" id="rollbackPointList"></div>
+            </section>
+
+            <section class="panel manager-library-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>备份资产</h2>
+                  <p>统一查看可保存的对话、项目、记忆、能力与接入记录。</p>
+                </div>
+                <button class="button secondary manager-library-action semantic-action action-backup" data-view-button="backup" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="list-checks"></i></span>
+                  <span>选择备份内容</span>
+                </button>
+              </div>
+              <div class="manager-library-grid" id="managerLibraryGrid"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="settings">
+          <div class="settings-grid">
+            <section class="panel settings-primary-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>基础设置</h2>
+                  <p>默认会自动识别 Codex 主目录，备份文件夹可以位于任意本地路径。</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span>Codex 主目录</span>
+                  <input id="settingsCodexHome" />
+                </label>
+                <label>
+                  <span>备份文件夹</span>
+                  <input id="settingsBackupDir" />
+                </label>
+                <label class="retention-setting">
+                  <span>保留恢复点数量</span>
+                  <span class="number-stepper">
+                    <button class="icon-button stepper-button semantic-action action-adjust" id="decreaseRetainButton" type="button" aria-label="减少保留数量" title="减少保留数量"><i data-lucide="minus"></i></button>
+                    <input id="settingsRetain" type="number" min="1" max="30" />
+                    <button class="icon-button stepper-button semantic-action action-adjust" id="increaseRetainButton" type="button" aria-label="增加保留数量" title="增加保留数量"><i data-lucide="plus"></i></button>
+                  </span>
+                </label>
+              </div>
+              <div class="notice">登录凭据、auth.json、登录 Token 与 API Key 永久不进入备份；插件授权默认排除。恢复到新设备后需要重新登录或重新配置。</div>
+              <div class="action-row page-action-bar">
+                <button class="button secondary semantic-action action-reset" id="resetSettingsButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="rotate-ccw"></i></span>
+                  <span>恢复默认值</span>
+                </button>
+                <button class="button primary semantic-action action-save" id="saveSettingsButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="check"></i></span>
+                  <span>保存设置</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="panel settings-safety-panel">
+              <div class="panel-header">
+                <div>
+                  <h2>保护与适配</h2>
+                  <p>控制恢复计划中的安全策略和跨系统提示。</p>
+                </div>
+                <button class="button secondary semantic-action action-restore" id="viewRollbackPointsButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="history"></i></span>
+                  <span>查看回滚记录</span>
+                </button>
+              </div>
+              <div class="toggle-list">
+                <label class="toggle-row">
+                  <span><strong>自动创建回滚点</strong><small>恢复计划优先保留本机现有内容</small></span>
+                  <input id="settingsAutoRollback" type="checkbox" data-setting-toggle checked disabled />
+                  <i aria-hidden="true"></i>
+                </label>
+                <label class="toggle-row">
+                  <span><strong>跨系统适配</strong><small>检查 Windows、macOS 与 Linux 路径差异</small></span>
+                  <input id="settingsCrossSystem" type="checkbox" data-setting-toggle checked />
+                  <i aria-hidden="true"></i>
+                </label>
+                <label class="toggle-row danger-toggle">
+                  <span><strong>排除插件与本地工具</strong><small>登录凭据始终永久排除；此项控制插件缓存与本地运行时</small></span>
+                  <input id="settingsExcludeHighRisk" type="checkbox" data-setting-toggle checked />
+                  <i aria-hidden="true"></i>
+                </label>
+              </div>
+              <div class="settings-path-tools">
+                <span>备份文件夹</span>
+                <strong id="settingsBackupPathSummary">等待读取</strong>
+                <div class="action-row">
+                  <button class="button secondary semantic-action action-folder" data-open-folder-picker type="button">
+                    <span class="button-icon" aria-hidden="true"><i data-lucide="folder-cog"></i></span>
+                    <span>选择文件夹</span>
+                  </button>
+                  <button class="button secondary desktop-only semantic-action action-folder" id="openBackupFolderButton" type="button">
+                    <span class="button-icon" aria-hidden="true"><i data-lucide="folder-open"></i></span>
+                    <span>打开文件夹</span>
+                  </button>
+                  <button class="button secondary validate-settings-button semantic-action action-validate" id="validateSettingsButton" type="button">
+                    <span class="button-icon" aria-hidden="true"><i data-lucide="shield-check"></i></span>
+                    <span>验证设置</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="folderPickerModal" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="folderPickerTitle">
+        <div class="modal-header">
+          <div>
+            <h2 id="folderPickerTitle">选择备份文件夹</h2>
+            <p>可以选推荐位置，也可以直接在输入框里填任意本地路径。该路径只是备份文件夹，不会由 Codex Link 自动上传或同步。</p>
+          </div>
+          <button class="mini-button semantic-action action-reset" id="closeFolderPickerButton" type="button">关闭</button>
+        </div>
+        <div class="folder-presets" id="folderPickerList"></div>
+      </section>
+    </div>
+
+    <script src="/app.js?v=20260813-2"></script>
+  </body>
+</html>

@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Codex Link Local Migration</title>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <style>
+      :root {
+        --ink: #14211a;
+        --muted: #68736c;
+        --line: #ddd8cf;
+        --page: #f5f3ee;
+        --panel: #fffdfa;
+        --green: #21714d;
+        --green-soft: #e3f0e9;
+        --blue: #315e86;
+        --blue-soft: #e2ecf5;
+        --amber: #95621f;
+        --amber-soft: #f6e8cf;
+        --shadow: 0 16px 38px rgba(30, 36, 31, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f9f8f4, var(--page) 58%, #edf3ef);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 26px;
+        line-height: 1.18;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 21px;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+
+      h3 {
+        font-size: 16px;
+        line-height: 1.3;
+        letter-spacing: 0;
+      }
+
+      .app {
+        width: min(1180px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 24px 0 34px;
+      }
+
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.55;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        background: var(--green);
+        color: #fff;
+        font-weight: 850;
+      }
+
+      .top-actions,
+      .button-row,
+      .mini-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 40px;
+        border-radius: 8px;
+        padding: 0 14px;
+        border: 1px solid transparent;
+        white-space: nowrap;
+      }
+
+      .button.primary {
+        background: var(--green);
+        color: #fff;
+        box-shadow: 0 12px 24px rgba(33, 113, 77, 0.2);
+      }
+
+      .button.secondary {
+        border-color: var(--line);
+        background: #fffdfa;
+        color: var(--ink);
+      }
+
+      .task-switch {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        padding: 5px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ebe7dd;
+        margin-bottom: 16px;
+      }
+
+      .task-switch button {
+        min-height: 46px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .task-switch button.active {
+        background: #fffdfa;
+        color: var(--green);
+        font-weight: 800;
+        box-shadow: 0 10px 22px rgba(31, 36, 30, 0.08);
+      }
+
+      .flow {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .flow-step {
+        display: grid;
+        grid-template-columns: 34px minmax(0, 1fr);
+        gap: 10px;
+        min-height: 82px;
+        padding: 13px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 253, 250, 0.8);
+      }
+
+      .flow-step.active {
+        border-color: #bdd8ca;
+        background: var(--green-soft);
+      }
+
+      .step-index {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: #fff;
+        color: var(--green);
+        font-weight: 850;
+      }
+
+      .flow-step strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .flow-step span {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 330px;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 253, 250, 0.94);
+        box-shadow: var(--shadow);
+      }
+
+      .panel-inner {
+        padding: 18px;
+      }
+
+      .main-card {
+        min-height: 520px;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .section-head p {
+        margin-top: 7px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        background: var(--green-soft);
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 750;
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+
+      .field {
+        display: grid;
+        gap: 7px;
+      }
+
+      .field span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+
+      .notice {
+        display: grid;
+        grid-template-columns: 26px minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid #cbded4;
+        border-radius: 8px;
+        background: #f2f8f5;
+        color: #275943;
+        font-size: 13px;
+        line-height: 1.55;
+        margin: 14px 0;
+      }
+
+      .notice i {
+        margin-top: 2px;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .metric {
+        min-height: 98px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .metric i {
+        color: var(--green);
+      }
+
+      .metric strong {
+        display: block;
+        margin-top: 8px;
+        font-size: 18px;
+      }
+
+      .metric span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .side-stack {
+        display: grid;
+        gap: 16px;
+      }
+
+      .list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .list-item {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr);
+        gap: 10px;
+        align-items: start;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .list-item i {
+        color: var(--green);
+      }
+
+      .list-item.warn i {
+        color: var(--amber);
+      }
+
+      .list-item strong {
+        display: block;
+        font-size: 14px;
+      }
+
+      .list-item span {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .side-title {
+        margin-bottom: 12px;
+      }
+
+      .side-title p {
+        margin-top: 5px;
+      }
+
+      .import-view {
+        display: none;
+      }
+
+      .body.importing .export-view {
+        display: none;
+      }
+
+      .body.importing .import-view {
+        display: block;
+      }
+
+      .body.importing .flow-export {
+        border-color: var(--line);
+        background: rgba(255, 253, 250, 0.8);
+      }
+
+      .body.importing .flow-import {
+        border-color: #bdd8ca;
+        background: var(--green-soft);
+      }
+
+      @media (max-width: 1020px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .flow,
+        .summary-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 720px) {
+        .app {
+          width: min(100vw - 24px, 1180px);
+          padding-top: 14px;
+        }
+
+        .topbar,
+        .section-head {
+          display: grid;
+        }
+
+        .task-switch,
+        .flow,
+        .form-grid,
+        .summary-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app body" id="pageBody">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark">CL</div>
+          <div>
+            <h1>本地迁移</h1>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="button secondary" type="button"><i data-lucide="folder-open"></i><span>打开文件夹</span></button>
+          <button class="button secondary" type="button"><i data-lucide="settings-2"></i><span>设置</span></button>
+        </div>
+      </header>
+
+      <div class="task-switch" role="tablist" aria-label="本地迁移任务">
+        <button class="active" id="exportTab" type="button">旧设备导出</button>
+        <button id="importTab" type="button">新设备导入</button>
+      </div>
+
+      <section class="flow" aria-label="迁移流程">
+        <article class="flow-step active flow-export">
+          <div class="step-index">1</div>
+          <div><strong>导出迁移文件夹</strong><span>Codex Link 整理可迁移内容。</span></div>
+        </article>
+        <article class="flow-step">
+          <div class="step-index">2</div>
+          <div><strong>搬运文件夹</strong><span>把文件夹带到新设备。</span></div>
+        </article>
+        <article class="flow-step flow-import">
+          <div class="step-index">3</div>
+          <div><strong>导入到新设备</strong><span>选择文件夹并恢复。</span></div>
+        </article>
+      </section>
+
+      <div class="layout">
+        <main class="panel main-card">
+          <div class="panel-inner export-view">
+            <div class="section-head">
+              <div>
+                <span class="badge"><span class="dot"></span> 旧设备</span>
+                <h2 style="margin-top: 12px;">导出迁移文件夹</h2>
+              </div>
+              <button class="button primary" id="primaryAction" type="button">
+                <i data-lucide="package-plus"></i><span>导出</span>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span>Codex 数据目录</span>
+                <input value="C:\Users\&lt;username&gt;\.codex" />
+              </label>
+              <label class="field">
+                <span>迁移文件夹保存到</span>
+                <input value="G:\Backups\Codex-Link" />
+              </label>
+            </div>
+
+            <div class="summary-grid">
+              <article class="metric">
+                <i data-lucide="messages-square"></i>
+                <strong>80 条</strong>
+                <span>对话记录</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="blocks"></i>
+                <strong>166 个</strong>
+                <span>技能 Skills</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="plug-zap"></i>
+                <strong>9 个</strong>
+                <span>API 接入记录</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="file-clock"></i>
+                <strong>使用记录</strong>
+                <span>关联到项目和对话</span>
+              </article>
+            </div>
+          </div>
+
+          <div class="panel-inner import-view">
+            <div class="section-head">
+              <div>
+                <span class="badge"><span class="dot"></span> 新设备</span>
+                <h2 style="margin-top: 12px;">导入迁移文件夹</h2>
+              </div>
+              <button class="button primary" type="button">
+                <i data-lucide="monitor-up"></i><span>导入</span>
+              </button>
+            </div>
+
+            <div class="form-grid">
+              <label class="field">
+                <span>迁移文件夹位置</span>
+                <input placeholder="选择已下载的迁移文件夹" />
+              </label>
+              <label class="field">
+                <span>恢复到 Codex 数据目录</span>
+                <input value="C:\Users\&lt;username&gt;\.codex" />
+              </label>
+            </div>
+
+            <div class="summary-grid">
+              <article class="metric">
+                <i data-lucide="check-circle-2"></i>
+                <strong>直接恢复</strong>
+                <span>对话、记忆、Skills</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="key-round"></i>
+                <strong>重新填写</strong>
+                <span>API Key</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="link-2"></i>
+                <strong>重新登录</strong>
+                <span>插件和账号授权</span>
+              </article>
+              <article class="metric">
+                <i data-lucide="route"></i>
+                <strong>检查路径</strong>
+                <span>本地工具和命令</span>
+              </article>
+            </div>
+          </div>
+        </main>
+
+        <aside class="side-stack">
+          <section class="panel">
+            <div class="panel-inner">
+              <div class="side-title">
+                <h3>迁移文件夹内容</h3>
+                <p class="muted">固定默认项，不让用户反复勾选。</p>
+              </div>
+              <div class="list">
+                <div class="list-item">
+                  <i data-lucide="check-circle-2"></i>
+                  <div><strong>对话记录</strong><span>当前会话、归档会话、任务索引。</span></div>
+                </div>
+                <div class="list-item">
+                  <i data-lucide="check-circle-2"></i>
+                  <div><strong>技能 Skills</strong><span>本地 Skills、插件 Skills 清单。</span></div>
+                </div>
+                <div class="list-item">
+                  <i data-lucide="check-circle-2"></i>
+                  <div><strong>API 记录</strong><span>接入方式、模型、endpoint、使用记录。</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-inner">
+              <div class="side-title">
+                <h3>导入后处理</h3>
+                <p class="muted">只把必须手动处理的事项拿出来。</p>
+              </div>
+              <div class="list">
+                <div class="list-item warn">
+                  <i data-lucide="key-round"></i>
+                  <div><strong>API Key</strong><span>不复制明文密钥，只恢复接入记录。</span></div>
+                </div>
+                <div class="list-item warn">
+                  <i data-lucide="link-2"></i>
+                  <div><strong>登录授权</strong><span>飞书、插件连接器需要重新授权。</span></div>
+                </div>
+                <div class="list-item warn">
+                  <i data-lucide="route"></i>
+                  <div><strong>本地工具</strong><span>Node、Python、ffmpeg 等按新设备检查。</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <script>
+      const pageBody = document.querySelector("#pageBody");
+      const exportTab = document.querySelector("#exportTab");
+      const importTab = document.querySelector("#importTab");
+      const primaryAction = document.querySelector("#primaryAction");
+
+      function setMode(mode) {
+        const importing = mode === "import";
+        pageBody.classList.toggle("importing", importing);
+        exportTab.classList.toggle("active", !importing);
+        importTab.classList.toggle("active", importing);
+      }
+
+      exportTab.addEventListener("click", () => setMode("export"));
+      importTab.addEventListener("click", () => setMode("import"));
+      primaryAction.addEventListener("click", () => {
+        primaryAction.innerHTML = '<i data-lucide="check"></i><span>已导出</span>';
+        window.lucide?.createIcons({ attrs: { "stroke-width": 1.8 } });
+      });
+
+      window.lucide?.createIcons({ attrs: { "stroke-width": 1.8 } });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,55 @@
+# Dependencies and package-manager caches
+node_modules/
+**/node_modules/
+.npm/
+.pnpm-store/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+auth.json
+credentials*
+cookies*
+codex-link.config.local.json
+
+# Logs, caches, temp and crash data
+*.log
+logs/
+cache/
+.cache/
+tmp/
+temp/
+crash*/
+coverage/
+
+# Build and release artifacts
+dist/
+release/
+target/
+out/
+
+# Local QA evidence and generated screenshots
+ui-verification/
+qa/reports/
+*.tmp
+
+# Unrelated local/private workspace
+mg-no1/
+/*.png
+/*.html
+/*.xml
+/design-qa.md
+
+# Editors and operating-system metadata
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local backup data
+snapshots/
+backups/

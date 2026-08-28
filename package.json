@@ -1,0 +1,124 @@
+{
+  "name": "codex-link",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Local backup folder and restore point manager for Codex environments.",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "electron .",
+    "start:web": "node server.js",
+    "dev": "electron .",
+    "dev:web": "node server.js",
+    "check": "node --check server.js && node --check lib/restore-engine.js && node --check lib/portable-projects.js && node --check lib/sqlite-safety.js && node --check public/app.js && node --check desktop/main.js && node --check desktop/preload.js",
+    "test": "node --test test/platform-compat.test.js test/restore-flow.test.js test/portable-restore.test.js test/manual-review.test.js test/macos-release-evidence.test.js",
+    "self-check": "node scripts/codex-link-self-check.js --profile release",
+    "self-check:stage": "node scripts/codex-link-self-check.js --profile stage",
+    "build:dir": "electron-builder --dir",
+    "build:win": "electron-builder --win nsis --x64",
+    "build:mac:arm64": "electron-builder --mac dmg zip --arm64",
+    "build:mac:release": "electron-builder --mac dmg zip --arm64 -c.mac.notarize=true",
+    "package:mac:arm64": "bash scripts/build-macos-arm64.sh",
+    "package:mac:arm64:unsigned": "bash scripts/build-macos-arm64.sh",
+    "sign:mac:test": "bash scripts/sign-macos-test-app.sh",
+    "package:mac:source": "node scripts/package-macos-source.js",
+    "verify:mac": "node --test test/platform-compat.test.js",
+    "verify:mac:release": "bash scripts/verify-macos-release.sh",
+    "verify:installer": "node scripts/verify-windows-installer.js",
+    "manual:init": "node scripts/init-manual-review.js",
+    "manual:validate": "node scripts/validate-manual-review.js"
+  },
+  "keywords": [
+    "codex",
+    "backup",
+    "restore-point",
+    "migration"
+  ],
+  "author": "Codex Link",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "playwright": "^1.62.1",
+    "yazl": "^3.3.1"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0"
+  },
+  "build": {
+    "appId": "com.codexlink.desktop",
+    "productName": "Codex Link",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "copyright": "Copyright © 2026 Codex Link",
+    "files": [
+      "desktop/**/*",
+      "lib/**/*",
+      "public/**/*",
+      "build/icon.png",
+      "server.js",
+      "README.md",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Codex-Link-Setup-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "artifactName": "Codex-Link-${version}-mac-${arch}.${ext}",
+      "extendInfo": {
+        "CFBundleDisplayName": "Codex Link",
+        "NSHumanReadableCopyright": "Copyright © 2026 Codex Link"
+      }
+    },
+    "dmg": {
+      "title": "Codex Link ${version} (${arch})"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Codex Link",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zhangziming-ai/Codex-Link.git"
+  },
+  "homepage": "https://github.com/zhangziming-ai/Codex-Link#readme",
+  "bugs": {
+    "url": "https://github.com/zhangziming-ai/Codex-Link/issues"
+  }
+}
