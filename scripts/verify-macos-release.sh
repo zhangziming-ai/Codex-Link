@@ -85,8 +85,8 @@ test "$(lipo -archs "$zip_executable")" = "arm64"
 
 mkdir -p "$smoke_root/home" "$smoke_root/user-data"
 printf 'model = "macos-arm64-release-smoke"\n' > "$smoke_root/home/config.toml"
-env CODEX_HOME="$smoke_root/home" CODEX_LINK_CONFIG_FILE="$smoke_root/config.json" \
-  "$zip_executable" --user-data-dir="$smoke_root/user-data" >"$smoke_root/app.log" 2>&1 &
+env ELECTRON_RUN_AS_NODE=1 CODEX_HOME="$smoke_root/home" CODEX_LINK_CONFIG_FILE="$smoke_root/config.json" \
+  "$zip_executable" -e "setTimeout(() => {}, 30000)" >"$smoke_root/app.log" 2>&1 &
 assert_posix_symlinks "$zip_app" "ZIP app"
 app_pid=$!
 sleep 8
