@@ -8,9 +8,19 @@ on:
         required: true
         default: false
         type: boolean
+      upload_release:
+        description: Upload generated macOS packages to a GitHub Release
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: Release tag to upload assets to, for example v1.0.0
+        required: true
+        default: v1.0.0
+        type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-arm64:
@@ -49,9 +59,23 @@ jobs:
           chmod +x scripts/build-macos-arm64.sh
           npm run package:mac:arm64
 
-      - name: Create SHA-256 checksums
+      - name: Prepare release asset names
         run: |
-          shasum -a 256 dist/Codex-Link-*-mac-arm64.dmg dist/Codex-Link-*-mac-arm64.zip > dist/Codex-Link-mac-arm64-SHA256.txt
+          version="$(node -p "require('./package.json').version")"
+          if [[ "$CODEX_LINK_MAC_RELEASE" == "1" ]]; then
+            dmg_asset="dist/Codex-Link-${version}-mac-arm64.dmg"
+            zip_asset="dist/Codex-Link-${version}-mac-arm64.zip"
+          else
+            dmg_asset="dist/Codex-Link-${version}-mac-arm64-unsigned.dmg"
+            zip_asset="dist/Codex-Link-${version}-mac-arm64-unsigned.zip"
+            cp "dist/Codex-Link-${version}-mac-arm64.dmg" "$dmg_asset"
+            cp "dist/Codex-Link-${version}-mac-arm64.zip" "$zip_asset"
+          fi
+          shasum -a 256 "$dmg_asset" "$zip_asset" > dist/Codex-Link-mac-arm64-SHA256.txt
+          {
+            echo "DMG_ASSET=$dmg_asset"
+            echo "ZIP_ASSET=$zip_asset"
+          } >> "$GITHUB_ENV"
 
       - name: Publish verification summary
         run: |
@@ -62,10 +86,23 @@ jobs:
         with:
           name: Codex-Link-mac-arm64-${{ github.run_number }}
           path: |
-            dist/Codex-Link-*-mac-arm64.dmg
-            dist/Codex-Link-*-mac-arm64.zip
+            ${{ env.DMG_ASSET }}
+            ${{ env.ZIP_ASSET }}
             dist/Codex-Link-mac-arm64-SHA256.txt
             qa/reports/macos-arm64-release-latest.json
             qa/reports/macos-arm64-release-latest.md
           if-no-files-found: error
           retention-days: 30
+
+      - name: Upload packages to GitHub Release
+        if: ${{ inputs.upload_release }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          fail_on_unmatched_files: true
+          files: |
+            ${{ env.DMG_ASSET }}
+            ${{ env.ZIP_ASSET }}
+            dist/Codex-Link-mac-arm64-SHA256.txt
+            qa/reports/macos-arm64-release-latest.json
+            qa/reports/macos-arm64-release-latest.md
