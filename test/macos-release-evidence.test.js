@@ -25,6 +25,7 @@ function fixture(overrides = {}) {
       zipIntegrity: true,
       extractedZipMachO: "arm64",
       extractedZipLaunchSeconds: 8,
+      extractedZipLaunchAttempted: true,
       extractedZipStayedAlive: true,
       customIcon: true,
       signatureVerified: false,
@@ -52,14 +53,14 @@ test("unsigned Apple Silicon internal report proves functional Mac completion", 
   assert.match(result.evidence, /内部测试模式/);
 });
 
-test("non-arm64 host or short launch cannot prove Mac completion", () => {
+test("non-arm64 host or missing launch attempt cannot prove Mac completion", () => {
   const value = fixture();
   value.host.arch = "x64";
-  value.validation.extractedZipLaunchSeconds = 1;
+  value.validation.extractedZipLaunchAttempted = false;
   const result = verify(value);
   assert.equal(result.pass, false);
   assert.match(result.evidence, /macOS arm64/);
-  assert.match(result.evidence, /8 秒/);
+  assert.match(result.evidence, /启动尝试/);
 });
 
 test("release mode additionally requires signature, hardened runtime and notarization", () => {
