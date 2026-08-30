@@ -73,10 +73,10 @@ mounted=1
 test -d "$mount_dir/Codex Link.app"
 test -L "$mount_dir/Applications"
 test "$(lipo -archs "$mount_dir/Codex Link.app/Contents/MacOS/Codex Link")" = "arm64"
+assert_posix_symlinks "$mount_dir/Codex Link.app" "DMG app"
 hdiutil detach "$mount_dir" -quiet
 mounted=0
 
-assert_posix_symlinks "$mount_dir/Codex Link.app" "DMG app"
 ditto -x -k "$zip" "$zip_dir"
 zip_app="$zip_dir/Codex Link.app"
 zip_executable="$zip_app/Contents/MacOS/Codex Link"
