@@ -19,6 +19,9 @@ if [[ "${CODEX_LINK_MAC_RELEASE:-0}" == "1" ]]; then
   fi
   build_script="build:mac:release"
 else
+  unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME
+  unset APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
+  unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
   export CSC_IDENTITY_AUTO_DISCOVERY=false
   build_script="build:mac:arm64"
 fi
