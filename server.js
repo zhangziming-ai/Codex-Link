@@ -1313,6 +1313,21 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
     sourcePlatform: process.platform,
     projectFilesIncluded: false
   });
+  const backedConversations = listRecentConversations(resolvedHome).filter((item) =>
+    (item.bucket === "archived" ? include?.archivedSessions : include?.sessions)
+  );
+  const fullSkillCount = include?.skills
+    ? findSkillFiles(path.join(resolvedHome, "skills"), "local_skill", 2000).length
+    : 0;
+  const contentCounts = {
+    projects: new Set([
+      ...backedConversations.map((item) => item.projectPath || "__unknown__"),
+      ...copied.filter((item) => item.kind === "conversation").map((item) => item.projectPath || "__unknown__")
+    ]).size,
+    conversations: backedConversations.length + copied.filter((item) => item.kind === "conversation").length,
+    skills: fullSkillCount + copied.filter((item) => item.kind === "capability").length,
+    apiConfigurationNotes: copied.filter((item) => item.kind === "api_tool" || item.metadataOnly).length
+  };
   const manifest = {
     id,
     createdAt: new Date().toISOString(),
@@ -1326,6 +1341,7 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
     plan,
     selectionMode: copied.length > 0,
     selectedCounts: { ...selectedEntries.selectedCounts, copied: copied.length },
+    contentCounts,
     copied,
     portableProjects: {
       schemaVersion: projectCatalog.schemaVersion,
@@ -1762,6 +1778,56 @@ function listSnapshots(cloudDir) {
         };
       }))
     .sort((a, b) => (b.createdAt || b.id).localeCompare(a.createdAt || a.id));
+}
+
+function cleanUserSelectedPath(value) {
+  const trimmed = String(value || "").trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    const last = trimmed[trimmed.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      return trimmed.slice(1, -1).trim();
+    }
+  }
+  return trimmed;
+}
+
+function resolveRestorePointInput(inputPath) {
+  const cleaned = cleanUserSelectedPath(inputPath);
+  const resolvedInput = path.resolve(cleaned);
+  if (exists(path.join(resolvedInput, "manifest.json"))) {
+    return { snapshotDir: resolvedInput, selectedFromRoot: false, inputPath: cleaned };
+  }
+
+  const roots = [
+    resolvedInput,
+    path.join(resolvedInput, RESTORE_POINTS_DIR),
+    path.join(resolvedInput, BACKUP_ROOT_DIR, RESTORE_POINTS_DIR)
+  ];
+  const candidates = [];
+  [...new Set(roots.map((root) => path.resolve(root)))].forEach((root) => {
+    if (!statSafe(root)?.isDirectory()) return;
+    fs.readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .forEach((entry) => {
+        const snapshotDir = path.join(root, entry.name);
+        const manifestPath = path.join(snapshotDir, "manifest.json");
+        if (!exists(manifestPath)) return;
+        let createdAt = "";
+        try {
+          createdAt = JSON.parse(fs.readFileSync(manifestPath, "utf8")).createdAt || "";
+        } catch {}
+        candidates.push({
+          snapshotDir,
+          sortKey: createdAt || String(statSafe(manifestPath)?.mtimeMs || 0).padStart(20, "0")
+        });
+      });
+  });
+  candidates.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+  if (candidates.length) {
+    return { snapshotDir: candidates[0].snapshotDir, selectedFromRoot: true, inputPath: cleaned };
+  }
+  return { snapshotDir: resolvedInput, selectedFromRoot: false, inputPath: cleaned };
 }
 
 function deleteSnapshot({ cloudDir, snapshotDir, id }) {
@@ -2249,7 +2315,8 @@ function restorePlan({
   confirmDatabaseReplace = false,
   onProgress = () => {}
 }) {
-  const loaded = readSnapshotManifest(snapshotDir);
+  const resolvedInput = resolveRestorePointInput(snapshotDir);
+  const loaded = readSnapshotManifest(resolvedInput.snapshotDir);
   const resolvedSnapshotDir = loaded.snapshotDir;
   const manifest = loaded.manifest;
   const verificationTotal = Math.max(1, Number(manifest.integrity?.totalBytes || 0));
@@ -2419,6 +2486,7 @@ function restorePlan({
     "恢复执行前会再次完成逐文件 SHA-256 校验。",
     "恢复前会自动创建本机回滚点，恢复后会再次校验写入结果。",
     "恢复时应完全退出 Codex，包括后台或托盘进程。",
+    ...(resolvedInput.selectedFromRoot ? [`已从所选备份目录自动使用最新恢复点：${resolvedSnapshotDir}`] : []),
     ...(portableProjectPlan.required && !portableProjectPlan.confirmed ? ["跨系统恢复必须先确认每个项目的目标路径或明确标记为未关联。"] : []),
     ...(projectCatalog.migratedFromLegacy ? ["旧版恢复点没有项目清单，已从 SQLite 与 JSONL 重建候选项目。"] : []),
     ...(manifest.selectionMode ? ["备份时单独选择的对话与能力会恢复到独立暂存目录，避免覆盖其他内容。"] : []),
@@ -2873,6 +2941,7 @@ module.exports = {
   listRollbackPoints,
   normalizeConfig,
   recoverPendingRestores,
+  resolveRestorePointInput,
   resolveConfiguredPath,
   restorePlan,
   saveConfig,

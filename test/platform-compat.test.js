@@ -36,15 +36,19 @@ function write(root, relative, content) {
 }
 
 test("macOS arm64 builder metadata coexists with the unchanged Windows NSIS target", () => {
-  assert.equal(packageJson.version, "1.0.0");
+  assert.equal(packageJson.version, "1.2.0");
   const desktopMain = fs.readFileSync(path.join(__dirname, "..", "desktop", "main.js"), "utf8");
   const publicHtml = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
   const publicApp = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
-  assert.match(desktopMain, /title:\s*["']Codex Link v1\.0["']/);
-  assert.match(publicHtml, /<title>Codex Link v1\.0<\/title>/);
+  assert.match(desktopMain, /title:\s*["']Codex Link v1\.2["']/);
+  assert.match(publicHtml, /<title>Codex Link v1\.2<\/title>/);
   assert.match(publicHtml, /id="viewRollbackPointsButton"/);
   assert.match(publicApp, /data-restore-project-expand-row/);
   assert.match(publicApp, /toggleRestoreProjectDetails/);
+  assert.match(publicApp, /data-restore-group-toggle/);
+  assert.match(publicApp, /data-restore-overview-toggle/);
+  assert.doesNotMatch(publicApp, /<details class="restore-selection-group/);
+  assert.doesNotMatch(publicApp, /<details class="restore-overview-group/);
   const macTargets = new Map(packageJson.build.mac.target.map((entry) => [entry.target, entry.arch]));
   assert.deepEqual(macTargets.get("dmg"), ["arm64"]);
   assert.deepEqual(macTargets.get("zip"), ["arm64"]);

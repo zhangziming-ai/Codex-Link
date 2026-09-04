@@ -6565,8 +6565,8 @@ button:disabled {
 .restore-selection-groups {
   display: grid;
   gap: 7px;
-  max-height: 392px;
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
   padding-right: 3px;
 }
 
@@ -6630,14 +6630,28 @@ button:disabled {
 
 .restore-selection-group-title {
   display: grid;
+  width: 100%;
   grid-template-columns: 30px minmax(0, 1fr) auto 16px;
   align-items: center;
   gap: 9px;
   min-height: 48px;
   padding: 7px 10px;
   color: #42536a;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   list-style: none;
+  position: relative;
+  z-index: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.restore-selection-group-title > * {
+  pointer-events: none;
 }
 
 .restore-selection-group-title::-webkit-details-marker,
@@ -6703,17 +6717,37 @@ button:disabled {
   transition: transform 180ms ease;
 }
 
-.restore-selection-group[open] > summary .restore-category-chevron,
-.restore-overview-group[open] > summary .restore-category-chevron {
+.restore-selection-group[data-open="true"] > .restore-selection-group-title .restore-category-chevron,
+.restore-overview-group[data-open="true"] > button .restore-category-chevron {
   transform: rotate(180deg);
 }
 
 .restore-selection-group-body {
-  display: grid;
+  display: none !important;
   gap: 7px;
   padding: 8px 9px 9px;
   border-top: 1px solid rgba(255, 255, 255, 0.7);
   background: rgba(255, 255, 255, 0.24);
+}
+
+.restore-selection-group-body[hidden],
+.restore-overview-group-body[hidden] {
+  display: none;
+}
+
+.restore-selection-group[data-open="true"] > .restore-selection-group-body {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: static !important;
+  height: auto !important;
+  min-height: 72px;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.restore-project-priority[data-open="true"] > .restore-selection-group-body {
+  min-height: 180px;
 }
 
 .restore-selection-group-body > .restore-group-actions {
@@ -7164,29 +7198,35 @@ button:disabled {
   background: linear-gradient(145deg, rgba(255, 255, 255, 0.72), var(--restore-tone-soft));
 }
 
-.restore-overview-group > summary {
+.restore-overview-group > button {
   display: grid;
+  width: 100%;
   grid-template-columns: 26px minmax(0, 1fr) auto 14px;
   align-items: center;
   gap: 7px;
   min-height: 38px;
   padding: 5px 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
   list-style: none;
 }
 
-.restore-overview-group > summary .restore-category-icon {
+.restore-overview-group > button .restore-category-icon {
   width: 25px;
   height: 25px;
   border-radius: 8px;
 }
 
-.restore-overview-group > summary strong {
+.restore-overview-group > button strong {
   color: #3b485a;
   font-size: 10px;
 }
 
-.restore-overview-group > summary em {
+.restore-overview-group > button em {
   color: var(--restore-tone-strong);
   font-size: 9px;
   font-style: normal;
@@ -7199,6 +7239,83 @@ button:disabled {
   padding: 6px;
   border-top: 1px solid rgba(255, 255, 255, 0.68);
   background: rgba(255, 255, 255, 0.24);
+}
+
+.restore-overview-project {
+  overflow: hidden;
+  margin: 0 3px 6px 12px;
+  border: 0;
+  border-left: 3px solid color-mix(in srgb, var(--restore-tone-strong) 58%, transparent);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 2px 7px rgba(62, 89, 135, 0.06);
+}
+
+.restore-overview-project:last-child {
+  margin-bottom: 0;
+}
+
+.restore-overview-project > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 18px minmax(0, 1fr) auto 13px;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.restore-overview-project > button > svg:first-child {
+  width: 15px;
+  color: var(--restore-tone-strong);
+}
+
+.restore-overview-project > button span,
+.restore-overview-project > button strong,
+.restore-overview-project > button small {
+  display: block;
+  min-width: 0;
+}
+
+.restore-overview-project > button strong,
+.restore-overview-project > button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.restore-overview-project > button strong {
+  font-size: 9px;
+}
+
+.restore-overview-project > button small,
+.restore-overview-project > button em {
+  color: #748090;
+  font-size: 8px;
+  font-style: normal;
+}
+
+.restore-overview-project[data-open="true"] > button .restore-category-chevron {
+  transform: rotate(180deg);
+}
+
+.restore-overview-project-body {
+  max-height: 180px;
+  overflow: auto;
+  padding: 5px;
+  margin-left: 18px;
+  border-top: 1px dashed var(--restore-tone-line);
+  background: rgba(241, 247, 252, 0.72);
+}
+
+.restore-overview-project-body[hidden] {
+  display: none;
 }
 
 .restore-overview-empty.compact {
@@ -7470,7 +7587,7 @@ button:disabled {
 
 .restore-project-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 5px 10px;
   align-items: center;
   padding: 12px 14px;
@@ -7488,12 +7605,26 @@ button:disabled {
   outline-offset: -3px;
 }
 
+.restore-project-checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  cursor: pointer;
+}
+
 .restore-project-toggle {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
@@ -7516,7 +7647,7 @@ button:disabled {
 
 .restore-project-header > small {
   grid-column: 1 / -1;
-  padding-left: 50px;
+  padding-left: 33px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -7535,6 +7666,25 @@ button:disabled {
   font-size: 10px;
   font-weight: 760;
   cursor: pointer;
+}
+
+.restore-project-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.restore-project-select {
+  min-height: 28px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 999px;
+  padding: 0 10px;
+  background: color-mix(in srgb, var(--accent-soft) 74%, white);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 780;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .restore-project-expand svg {
@@ -7565,5 +7715,9 @@ button:disabled {
   }
   .restore-project-header > small {
     padding-left: 0;
+  }
+  .restore-project-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
 }

@@ -91,7 +91,7 @@ async function waitUntil(predicate, timeoutMs = 30000) {
       heading: document.querySelector(".brand-name")?.textContent?.trim(),
       desktop: window.codexLinkDesktop?.isDesktop === true
     }));
-    if (identity.title !== "Codex Link v1.0" || identity.heading !== "Codex Link" || !identity.desktop) {
+    if (identity.title !== "Codex Link v1.2" || identity.heading !== "Codex Link" || !identity.desktop) {
       throw new Error(`Installed app identity check failed: ${JSON.stringify(identity)}`);
     }
     await page.click('[data-view="backup"]');

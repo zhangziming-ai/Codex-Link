@@ -18,8 +18,9 @@ const state = {
   restoreSelectionInitialized: false,
   restoreSelectionQuery: "",
   restoreOpenProjectIds: new Set(),
-  restoreExpandedGroups: new Set(),
-  restoreOverviewExpandedGroups: new Set(),
+  restoreExpandedGroups: new Set(["projects"]),
+  restoreOverviewExpandedGroups: new Set(["projects"]),
+  restoreOverviewOpenProjectIds: new Set(),
   restoreRecovery: null,
   testRestoreEnvironment: null,
   diagnosticArtifact: null
@@ -717,7 +718,7 @@ function renderAdvancedOptions() {
   container.innerHTML = [`<div class="advanced-group-label tone-mint"><strong>精细选择 · 同步加入主备份</strong><small>上方已全量勾选时，这里自动显示“已包含”；取消全量后可选择单项</small></div>`,
     advancedCategory({
       key: "projects", icon: "folder-kanban", title: "项目记录", tone: "cyan",
-      subtitle: `${projects.length} 个项目 · ${conversations.length} 条关联记录`,
+      subtitle: `当前设备扫描 · ${projects.length} 个项目 · ${conversations.length} 条关联记录`,
       count: conversationsCovered ? "全量已包含" : state.selectedProjects.size ? `已选 ${state.selectedProjects.size}` : "未选择",
       open: state.advancedOpen.has("projects"),
       body: `${advancedSearch("projects", "搜索项目名称或路径")}<p class="advanced-category-note">取消上方对话全量备份后，可在这里按项目精细选择；所选记录会加入底部主备份。</p><div class="selection-list advanced-selection-list">${projectRows || `<div class="selection-empty">没有匹配的项目记录。</div>`}</div><div class="selection-actions batch-actions"><button class="mini-button semantic-action action-adjust" data-select-all-projects type="button" title="选择全部项目，包括当前未显示的项目" ${conversationsCovered ? "disabled" : ""}>全选全部 ${projects.length} 个</button><button class="mini-button semantic-action action-reset" data-clear-projects type="button" ${conversationsCovered || !state.selectedProjects.size ? "disabled" : ""}>清空</button></div>`
@@ -1364,8 +1365,8 @@ function setBackupVisual(visualState, result) {
   }
   if (visualState === "plan" || visualState === "created") {
     const selectionMode = Boolean(result?.manifest?.selectionMode);
-    kicker.textContent = selectionMode ? "Selected backup" : visualState === "plan" ? "Backup plan" : "Backup complete";
-    title.textContent = selectionMode ? "所选内容已备份" : visualState === "plan" ? "计划已就绪" : "备份已创建";
+    kicker.textContent = selectionMode ? "Unified backup" : visualState === "plan" ? "Backup plan" : "Backup complete";
+    title.textContent = visualState === "plan" ? "计划已就绪" : "备份已创建";
     body.textContent = visualState === "plan"
       ? "确认包含内容和恢复点路径后，即可创建备份。"
       : "恢复点已经写入备份文件夹。";
@@ -1387,27 +1388,24 @@ function renderPlanSummary(targetSelector, result, mode) {
   const isRestore = mode === "restore";
   const isSelection = Boolean(manifest.selectionMode);
   const selectedCounts = manifest.selectedCounts || {};
+  const contentCounts = manifest.contentCounts || {};
   const title = isRestore ? "恢复计划与校验已完成" : result.dryRun ? "备份计划已生成" : "备份已创建";
   const path = isRestore ? result.snapshotDir : result.snapshotDir;
   const total = isRestore
     ? `${(result.mappings || []).length} 个恢复映射`
-    : isSelection
-      ? `${selectedCounts.copied || 0} 个所选资产`
-      : fmtMb(plan.totalMb || 0);
+    : fmtMb(plan.totalMb || 0);
   const risk = isRestore
     ? result.integrity?.status === "verified"
       ? "SHA-256 校验通过"
       : result.integrity?.status === "failed"
         ? "完整性校验失败"
         : "旧恢复点需确认"
-    : isSelection
-      ? `${(manifest.copied || []).filter((item) => item.metadataOnly).length} 个需重新配置`
+    : Number(contentCounts.apiConfigurationNotes || 0)
+      ? `API 配置说明 ${contentCounts.apiConfigurationNotes} 项 · 需重新授权`
       : `${plan.warnings?.length || 0} 个提醒`;
   const scope = isRestore
     ? `目标：${restore.deployOS || "当前系统"}`
-    : isSelection
-      ? `对话 ${selectedCounts.conversations || 0} · 能力 ${selectedCounts.capabilities || 0}`
-      : `${selected.length} 个分区 · 项目 ${manifest.portableProjects?.projectCount || 0} · 对话 ${manifest.portableProjects?.threadCount || 0} · ${manifest.portableProjects?.projectFilesIncluded ? "含项目文件" : "不含项目文件"}`;
+    : `项目 ${contentCounts.projects ?? manifest.portableProjects?.projectCount ?? 0} · 对话 ${contentCounts.conversations ?? manifest.portableProjects?.threadCount ?? 0} · Skills ${contentCounts.skills ?? 0}`;
 
   target.innerHTML = `
     <div class="summary-card">
@@ -1506,8 +1504,9 @@ function resetRestoreSelection() {
   state.restoreSelectionInitialized = false;
   state.restoreSelectionQuery = "";
   state.restoreOpenProjectIds = new Set();
-  state.restoreExpandedGroups = new Set();
-  state.restoreOverviewExpandedGroups = new Set();
+  state.restoreExpandedGroups = new Set(["projects"]);
+  state.restoreOverviewExpandedGroups = new Set(["projects"]);
+  state.restoreOverviewOpenProjectIds = new Set();
   state.restoreOperation = null;
   const mappingPanel = $("#projectMappingPanel");
   if (mappingPanel) mappingPanel.hidden = true;
@@ -1617,14 +1616,16 @@ function renderConversationProjectTree(items, { collapsible = false } = {}) {
     const conversationHtml = project.items.map(restoreItemCard).join("");
     return [
       '<section class="restore-project-node ' + (selected ? "has-selection" : "") + '" data-restore-project-node="' + escapeHtml(project.projectId) + '">',
-      '<div class="restore-project-header" data-restore-project-expand-row="' + escapeHtml(project.projectId) + '" role="button" tabindex="0" aria-expanded="' + String(open) + '">',
-      '<label class="restore-project-toggle">',
-      '<input class="restore-project-checkbox" type="checkbox" data-restore-project="' + escapeHtml(project.projectId) + '" ' + (allSelected ? "checked" : "") + ' data-indeterminate="' + (partial ? "true" : "false") + '" />',
+      '<div class="restore-project-header" data-restore-project-expand-row="' + escapeHtml(project.projectId) + '" aria-expanded="' + String(open) + '">',
+      '<label class="restore-project-checkbox-wrap" title="选择或取消该项目下的全部对话">',
+      '<input class="restore-project-checkbox" type="checkbox" data-restore-project="' + escapeHtml(project.projectId) + '" aria-label="选择项目 ' + escapeHtml(project.projectName) + ' 下的全部对话" ' + (allSelected ? "checked" : "") + ' data-indeterminate="' + (partial ? "true" : "false") + '" />',
+      '</label>',
+      '<button class="restore-project-toggle" type="button" data-restore-project-expand="' + escapeHtml(project.projectId) + '" aria-expanded="' + String(open) + '" title="展开或收起项目内容">',
       '<span><i data-lucide="folder-kanban" aria-hidden="true"></i></span>',
       '<strong>' + escapeHtml(project.projectName) + '</strong>',
-      '<em>' + selected + " / " + restorable.length + " 条</em>",
-      "</label>",
-      collapsible ? '<button class="restore-project-expand semantic-action action-adjust" type="button" data-restore-project-expand="' + escapeHtml(project.projectId) + '" aria-expanded="' + String(open) + '"><span>' + (open ? "收起明细" : "查看明细") + '</span><i data-lucide="chevron-down" aria-hidden="true"></i></button>' : "",
+      '<em>' + selected + " / " + restorable.length + " 条对话</em>",
+      "</button>",
+      collapsible ? '<div class="restore-project-actions"><button class="restore-project-select semantic-action action-adjust" type="button" data-restore-project-select="' + escapeHtml(project.projectId) + '" data-select-mode="' + (allSelected ? "clear" : "all") + '">' + (allSelected ? "清空本项目" : "全选本项目") + '</button><button class="restore-project-expand semantic-action action-adjust" type="button" data-restore-project-expand="' + escapeHtml(project.projectId) + '" aria-expanded="' + String(open) + '"><span>' + (open ? "收起明细" : "查看明细") + '</span><i data-lucide="chevron-down" aria-hidden="true"></i></button></div>' : "",
       '<small title="' + escapeHtml(project.projectPath) + '">' + escapeHtml(shortPath(project.projectPath, 86)) + "</small>",
       "</div>",
       '<div class="restore-project-conversations" ' + (open ? "" : "hidden") + ">" + conversationHtml + "</div>",
@@ -1639,20 +1640,39 @@ function renderRestoreProjectSelection(items) {
   const projects = restoreConversationProjects(conversationItems);
   const totalRestorable = projects.reduce((sum, project) => sum + project.items.filter((item) => item.restorable).length, 0);
   const selectedTotal = conversationItems.filter((item) => item.restorable && state.restoreSelectedItemIds.has(item.id)).length;
-  return '<details class="restore-selection-group restore-project-priority tone-cyan" data-restore-group-key="projects" open>' +
-    '<summary id="restore-selection-summary-projects" class="restore-selection-group-title" aria-expanded="true" aria-controls="restore-selection-body-projects">' +
+  const selectedProjects = projects.filter((project) =>
+    project.items.some((item) => item.restorable && state.restoreSelectedItemIds.has(item.id))
+  ).length;
+  const open = Boolean(state.restoreSelectionQuery.trim()) || state.restoreExpandedGroups.has("projects");
+  return '<section class="restore-selection-group restore-project-priority tone-cyan" data-restore-group-key="projects" data-open="' + String(open) + '">' +
+    '<button type="button" data-restore-group-toggle="projects" id="restore-selection-summary-projects" class="restore-selection-group-title" aria-expanded="' + String(open) + '" aria-controls="restore-selection-body-projects">' +
     '<span class="restore-category-icon"><i data-lucide="folder-kanban"></i></span>' +
-    '<span class="restore-category-copy"><strong>项目记录</strong><small>优先按项目恢复，自动带出项目下的对话与索引</small></span>' +
-    '<span class="restore-category-count">' + selectedTotal + " / " + totalRestorable + ' 条</span><i class="restore-category-chevron" data-lucide="chevron-down"></i>' +
-    '</summary><div id="restore-selection-body-projects" class="restore-selection-group-body" role="region" aria-labelledby="restore-selection-summary-projects">' +
-    '<div class="restore-item-grid restore-project-grid">' + renderConversationProjectTree(conversationItems, { collapsible: true }) + "</div></div></details>";
+    '<span class="restore-category-copy"><strong>项目记录</strong><small>所选恢复点 · 按项目恢复并自动带出对话与索引</small></span>' +
+    '<span class="restore-category-count">' + selectedProjects + " / " + projects.length + " 个项目 · " + selectedTotal + " / " + totalRestorable + ' 条对话</span><i class="restore-category-chevron" data-lucide="chevron-down"></i>' +
+    '</button><div id="restore-selection-body-projects" class="restore-selection-group-body" role="region" aria-labelledby="restore-selection-summary-projects" ' + (open ? "" : "hidden") + '>' +
+    '<div class="restore-item-grid restore-project-grid">' + renderConversationProjectTree(conversationItems, { collapsible: true }) + "</div></div></section>";
 }
 
 function toggleRestoreProjectDetails(projectKey) {
   if (!projectKey) return;
   if (state.restoreOpenProjectIds.has(projectKey)) state.restoreOpenProjectIds.delete(projectKey);
   else state.restoreOpenProjectIds.add(projectKey);
+  renderRestoreSelectionPreservingPosition(projectKey);
+}
+
+function renderRestoreSelectionPreservingPosition(projectKey = "") {
+  const main = document.querySelector(".main");
+  const projectBody = document.getElementById("restore-selection-body-projects");
+  const mainScrollTop = main?.scrollTop || 0;
+  const projectScrollTop = projectBody?.scrollTop || 0;
   renderRestoreSelection();
+  if (main) main.scrollTop = mainScrollTop;
+  const nextProjectBody = document.getElementById("restore-selection-body-projects");
+  if (nextProjectBody) nextProjectBody.scrollTop = projectScrollTop;
+  if (projectKey) {
+    const project = document.querySelector('[data-restore-project-node="' + CSS.escape(projectKey) + '"]');
+    project?.setAttribute("data-scroll-restored", "true");
+  }
 }
 
 function openRollbackManager() {
@@ -1690,7 +1710,7 @@ function renderRestoreSelection(items = state.restoreAvailableItems) {
   meta.textContent = hasItems
     ? "已选 " + selectedCount + " / " + restorable.length + " 项" +
       (selectedHighRisk ? " · " + selectedHighRisk + " 项高风险需二次确认" : "") +
-      "；未勾选的内容不会写入目标目录。"
+      "；统计来自所选恢复点，未勾选的内容不会写入目标目录。"
     : "选择恢复点后，点击“读取恢复内容”查看可恢复项目。";
 
   if (!hasItems) {
@@ -1715,16 +1735,16 @@ function renderRestoreSelection(items = state.restoreAvailableItems) {
     const itemHtml = groupItems.map(restoreItemCard).join("");
     const summaryId = "restore-selection-summary-" + group.key;
     const bodyId = "restore-selection-body-" + group.key;
-    return '<details class="restore-selection-group tone-' + escapeHtml(group.tone) + '" data-restore-group-key="' +
-      escapeHtml(group.key) + '" ' + (open ? "open" : "") + '><summary id="' + escapeHtml(summaryId) +
+    return '<section class="restore-selection-group tone-' + escapeHtml(group.tone) + '" data-restore-group-key="' +
+      escapeHtml(group.key) + '" data-open="' + String(open) + '"><button type="button" data-restore-group-toggle="' + escapeHtml(group.key) + '" id="' + escapeHtml(summaryId) +
       '" class="restore-selection-group-title" aria-expanded="' + String(open) + '" aria-controls="' + escapeHtml(bodyId) + '">' +
       '<span class="restore-category-icon"><i data-lucide="' + escapeHtml(group.icon) + '"></i></span>' +
-      '<span class="restore-category-copy"><strong>' + escapeHtml(group.label) + '</strong><small>与创建备份分类一致 · 展开后可逐项选择</small></span>' +
+      '<span class="restore-category-copy"><strong>' + escapeHtml(group.label) + '</strong><small>所选恢复点 · 展开后可逐项选择</small></span>' +
       '<span class="restore-category-count">' + escapeHtml(countText) + '</span><i class="restore-category-chevron" data-lucide="chevron-down"></i>' +
-      '</summary><div id="' + escapeHtml(bodyId) + '" class="restore-selection-group-body" role="region" aria-labelledby="' +
-      escapeHtml(summaryId) + '"><div class="restore-group-actions"><button class="mini-button semantic-action action-adjust" type="button" data-restore-group-action="all" data-restore-group="' +
+      '</button><div id="' + escapeHtml(bodyId) + '" class="restore-selection-group-body" role="region" aria-labelledby="' +
+      escapeHtml(summaryId) + '" ' + (open ? "" : "hidden") + '><div class="restore-group-actions"><button class="mini-button semantic-action action-adjust" type="button" data-restore-group-action="all" data-restore-group="' +
       escapeHtml(group.key) + '" ' + (!groupRestorable.length || groupSelected === groupRestorable.length ? "disabled" : "") + '>本组全选</button><button class="mini-button semantic-action action-reset" type="button" data-restore-group-action="clear" data-restore-group="' +
-      escapeHtml(group.key) + '" ' + (!groupSelected ? "disabled" : "") + '>清空本组</button></div><div class="restore-item-grid">' + itemHtml + "</div></div></details>";
+      escapeHtml(group.key) + '" ' + (!groupSelected ? "disabled" : "") + '>清空本组</button></div><div class="restore-item-grid">' + itemHtml + "</div></div></section>";
   }).join("");
   groupsTarget.innerHTML = (projectHtml + groupHtml) ||
     '<div class="restore-selection-empty inline"><span>没有符合“' + escapeHtml(state.restoreSelectionQuery) + "”的恢复项。</span></div>";
@@ -1737,8 +1757,9 @@ function renderRestoreSelection(items = state.restoreAvailableItems) {
 function applyRestoreSelectionResult(result) {
   if (!state.restoreSelectionInitialized) {
     state.restoreOpenProjectIds = new Set();
-    state.restoreExpandedGroups = new Set();
-    state.restoreOverviewExpandedGroups = new Set();
+    state.restoreExpandedGroups = new Set(["projects"]);
+    state.restoreOverviewExpandedGroups = new Set(["projects"]);
+    state.restoreOverviewOpenProjectIds = new Set();
   }
   state.restoreAvailableItems = Array.isArray(result?.availableItems) ? result.availableItems : [];
   state.restoreSelectedItemIds = new Set(result?.restoreSelection?.selectedItemIds || []);
@@ -1754,6 +1775,38 @@ function confirmHighRiskRestoreSelection(items) {
     highRiskItems.map((item) => "• " + item.label).join("\n") +
     "\n\n这些内容恢复后可能需要重新授权、重装或检查本机路径。确认选择吗？"
   );
+}
+
+function renderRestoreOverviewProjects(items) {
+  const conversations = (items || []).filter((item) => item.kind === "conversation");
+  if (!conversations.length) return "";
+  const projects = restoreConversationProjects(conversations);
+  const open = state.restoreOverviewExpandedGroups.has("projects");
+  const rows = projects.map((project) => {
+    const projectOpen = state.restoreOverviewOpenProjectIds.has(project.projectId);
+    const bodyId = "restore-overview-project-body-" + project.projectId;
+    const conversationRows = project.items.map((item) =>
+      '<li><i data-lucide="' + (item.bucket === "archived" ? "archive" : "message-square") +
+      '" aria-hidden="true"></i><span><b>' + escapeHtml(item.label) + "</b><small>" +
+      escapeHtml((item.bucket === "archived" ? "归档对话" : "当前对话") +
+        (item.startedAt ? " · " + fmtDate(item.startedAt) : "")) + "</small></span></li>"
+    ).join("");
+    return '<section class="restore-overview-project" data-restore-overview-project="' + escapeHtml(project.projectId) +
+      '" data-open="' + String(projectOpen) + '"><button type="button" data-restore-overview-project-toggle="' +
+      escapeHtml(project.projectId) + '" aria-expanded="' + String(projectOpen) + '" aria-controls="' +
+      escapeHtml(bodyId) + '"><i data-lucide="folder-kanban" aria-hidden="true"></i><span><strong>' +
+      escapeHtml(project.projectName) + "</strong><small>" + escapeHtml(shortPath(project.projectPath, 52)) +
+      "</small></span><em>" + project.items.length +
+      ' 条</em><i class="restore-category-chevron" data-lucide="chevron-down"></i></button><div id="' +
+      escapeHtml(bodyId) + '" class="restore-overview-project-body" ' + (projectOpen ? "" : "hidden") +
+      '><ul class="restore-overview-list">' + conversationRows + "</ul></div></section>";
+  }).join("");
+  return '<section class="restore-overview-group tone-cyan" data-restore-overview-group="projects" data-open="' +
+    String(open) + '"><button type="button" data-restore-overview-toggle="projects" id="restore-overview-summary-projects" aria-expanded="' +
+    String(open) + '" aria-controls="restore-overview-body-projects"><span class="restore-category-icon"><i data-lucide="folder-kanban"></i></span><strong>项目记录</strong><em>' +
+    projects.length + " 个项目 · " + conversations.length +
+    ' 条对话</em><i class="restore-category-chevron" data-lucide="chevron-down"></i></button><div id="restore-overview-body-projects" class="restore-overview-group-body" role="region" aria-labelledby="restore-overview-summary-projects" ' +
+    (open ? "" : "hidden") + ">" + rows + "</div></section>";
 }
 
 function renderRestorePlanOverview(result, mode = "plan") {
@@ -1824,7 +1877,8 @@ function renderRestorePlanOverview(result, mode = "plan") {
     : result.integrity?.status === "failed"
       ? "校验失败"
       : "执行前需确认";
-  const selectedGroupHtml = groupRestoreItems(selectedItems).map(({ meta: group, items: groupItems }) => {
+  const selectedProjectHtml = renderRestoreOverviewProjects(selectedItems);
+  const selectedGroupHtml = groupRestoreItems(selectedItems.filter((item) => item.kind !== "conversation")).map(({ meta: group, items: groupItems }) => {
     const open = state.restoreOverviewExpandedGroups.has(group.key);
     const itemHtml = groupItems.map((item) =>
       '<li class="' + (item.risk === "high" ? "is-risk" : "") + '"><i data-lucide="' +
@@ -1833,13 +1887,13 @@ function renderRestorePlanOverview(result, mode = "plan") {
     ).join("");
     const summaryId = "restore-overview-summary-" + group.key;
     const bodyId = "restore-overview-body-" + group.key;
-    return '<details class="restore-overview-group tone-' + escapeHtml(group.tone) + '" data-restore-overview-group="' +
-      escapeHtml(group.key) + '" ' + (open ? "open" : "") + '><summary id="' + escapeHtml(summaryId) +
+    return '<section class="restore-overview-group tone-' + escapeHtml(group.tone) + '" data-restore-overview-group="' +
+      escapeHtml(group.key) + '" data-open="' + String(open) + '"><button type="button" data-restore-overview-toggle="' + escapeHtml(group.key) + '" id="' + escapeHtml(summaryId) +
       '" aria-expanded="' + String(open) + '" aria-controls="' + escapeHtml(bodyId) + '"><span class="restore-category-icon"><i data-lucide="' +
       escapeHtml(group.icon) + '"></i></span><strong>' + escapeHtml(group.label) + '</strong><em>' +
-      groupItems.length + ' 项</em><i class="restore-category-chevron" data-lucide="chevron-down"></i></summary>' +
+      groupItems.length + ' 项</em><i class="restore-category-chevron" data-lucide="chevron-down"></i></button>' +
       '<div id="' + escapeHtml(bodyId) + '" class="restore-overview-group-body" role="region" aria-labelledby="' +
-      escapeHtml(summaryId) + '"><ul class="restore-overview-list">' + itemHtml + "</ul></div></details>";
+      escapeHtml(summaryId) + '" ' + (open ? "" : "hidden") + '><ul class="restore-overview-list">' + itemHtml + "</ul></div></section>";
   }).join("");
   const warningHtml = warnings.slice(0, 3).map((warning) =>
     '<li><i data-lucide="info" aria-hidden="true"></i><span>' + escapeHtml(warning) + "</span></li>"
@@ -1885,7 +1939,7 @@ function renderRestorePlanOverview(result, mode = "plan") {
     '<section class="restore-overview-section"><div class="restore-overview-section-title"><strong>将恢复的内容</strong><span>' +
       selectedItems.length + " 项" + (highRiskCount ? " · " + highRiskCount + " 项需确认" : "") +
       '</span></div><div class="restore-overview-groups">' +
-      (selectedGroupHtml || '<div class="restore-overview-empty compact"><span>当前没有选中的恢复内容。</span></div>') +
+      (selectedProjectHtml + selectedGroupHtml || '<div class="restore-overview-empty compact"><span>当前没有选中的恢复内容。</span></div>') +
       "</div></section>",
     adaptationTaskHtml ? '<section class="restore-overview-section is-adaptation"><div class="restore-overview-section-title"><strong>' +
       (adaptation.crossOS ? "跨系统处理" : "恢复处理方式") + "</strong><span>" +
@@ -1985,7 +2039,7 @@ function buildDiagnosticReport(data, phase) {
     reportSchemaVersion: 1,
     generatedAt: new Date().toISOString(),
     phase,
-    appVersion: value.appVersion || "1.0.0",
+    appVersion: value.appVersion || "1.2.0",
     sourceSystem: value.adaptationPlan?.sourceOS || value.sourceSystem || null,
     targetSystem: value.adaptationPlan?.deployOS || value.deployOS || null,
     sourceRestorePoint: value.snapshotDir || value.sourceSnapshotId || null,
@@ -2391,7 +2445,9 @@ function renderRestoreTargetHint() {
 }
 
 async function restorePlan() {
-  const snapshotDir = $("#restoreSnapshotInput").value.trim();
+  const snapshotInput = $("#restoreSnapshotInput");
+  const snapshotDir = cleanRestorePath(snapshotInput.value);
+  if (snapshotDir !== snapshotInput.value) snapshotInput.value = snapshotDir;
   if (!snapshotDir) {
     renderPlanSummary("#restoreSummary", null, "restore");
     $(".restore-summary-panel")?.classList.add("is-empty");
@@ -2576,6 +2632,32 @@ async function openFolderPicker() {
   renderFolderCards();
 }
 
+function cleanRestorePath(value) {
+  const trimmed = String(value || "").trim();
+  if (trimmed.length >= 2 && (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  )) return trimmed.slice(1, -1).trim();
+  return trimmed;
+}
+
+async function browseRestorePoint() {
+  const desktop = window.codexLinkDesktop;
+  if (!desktop?.selectDirectory) {
+    switchView("manager");
+    return;
+  }
+  const input = $("#restoreSnapshotInput");
+  const selected = await desktop.selectDirectory({
+    title: "选择备份目录或恢复点文件夹",
+    defaultPath: cleanRestorePath(input.value) || currentBackupDir()
+  });
+  if (!selected) return;
+  input.value = selected;
+  resetRestoreSelection();
+  await restorePlan();
+}
+
 async function openCurrentBackupFolder() {
   const targetPath = currentBackupDir();
   if (!targetPath) throw new Error("请先选择备份文件夹。");
@@ -2617,6 +2699,7 @@ function wireEvents() {
   $("#toggleBackupResultButton").addEventListener("click", toggleBackupResult);
   $("#loadBackupsButton").addEventListener("click", loadBackups);
   $("#restorePlanButton").addEventListener("click", restorePlan);
+  $("#browseRestorePointButton").addEventListener("click", () => browseRestorePoint().catch(showError));
   $("#restoreExecuteButton").addEventListener("click", executeRestore);
   $("#projectMappingList").addEventListener("input", () => setRestoreActionState(null));
   $("#projectMappingList").addEventListener("change", (event) => {
@@ -2674,7 +2757,7 @@ function wireEvents() {
       }
       if (projectInput.checked) state.restoreOpenProjectIds.add(projectKey);
       invalidateRestorePlanForSelectionChange();
-      renderRestoreSelection();
+      renderRestoreSelectionPreservingPosition(projectKey);
       return;
     }
     const input = event.target.closest("[data-restore-item]");
@@ -2687,7 +2770,7 @@ function wireEvents() {
     if (input.checked) state.restoreSelectedItemIds.add(input.dataset.restoreItem);
     else state.restoreSelectedItemIds.delete(input.dataset.restoreItem);
     invalidateRestorePlanForSelectionChange();
-    renderRestoreSelection();
+    renderRestoreSelectionPreservingPosition(restoreProjectKey(item));
   });
   $("#restoreSelectionGroups").addEventListener("toggle", (event) => {
     const details = event.target.closest("[data-restore-group-key]");
@@ -2698,6 +2781,35 @@ function wireEvents() {
     else state.restoreExpandedGroups.delete(details.dataset.restoreGroupKey);
   }, true);
   $("#restoreSelectionGroups").addEventListener("click", (event) => {
+    const groupToggle = event.target.closest("[data-restore-group-toggle]");
+    if (groupToggle) {
+      const groupKey = groupToggle.dataset.restoreGroupToggle;
+      const group = groupToggle.closest("[data-restore-group-key]");
+      const body = group?.querySelector(".restore-selection-group-body");
+      const open = groupToggle.getAttribute("aria-expanded") !== "true";
+      groupToggle.setAttribute("aria-expanded", String(open));
+      if (group) group.dataset.open = String(open);
+      if (body) body.hidden = !open;
+      if (open) state.restoreExpandedGroups.add(groupKey);
+      else state.restoreExpandedGroups.delete(groupKey);
+      return;
+    }
+    const projectSelect = event.target.closest("[data-restore-project-select]");
+    if (projectSelect) {
+      const projectKey = projectSelect.dataset.restoreProjectSelect;
+      const items = restoreProjectSelectionItems(projectKey);
+      if (projectSelect.dataset.selectMode === "all") {
+        const highRisk = items.filter((item) => item.risk === "high" && !state.restoreSelectedItemIds.has(item.id));
+        if (!confirmHighRiskRestoreSelection(highRisk)) return;
+        items.forEach((item) => state.restoreSelectedItemIds.add(item.id));
+        state.restoreOpenProjectIds.add(projectKey);
+      } else {
+        items.forEach((item) => state.restoreSelectedItemIds.delete(item.id));
+      }
+      invalidateRestorePlanForSelectionChange();
+      renderRestoreSelectionPreservingPosition(projectKey);
+      return;
+    }
     const projectExpand = event.target.closest("[data-restore-project-expand]");
     if (projectExpand) {
       toggleRestoreProjectDetails(projectExpand.dataset.restoreProjectExpand);
@@ -2729,13 +2841,32 @@ function wireEvents() {
     event.preventDefault();
     toggleRestoreProjectDetails(projectRow.dataset.restoreProjectExpandRow);
   });
-  $("#restorePlanOverview").addEventListener("toggle", (event) => {
-    const details = event.target.closest("[data-restore-overview-group]");
-    if (!details) return;
-    details.querySelector("summary")?.setAttribute("aria-expanded", String(details.open));
-    if (details.open) state.restoreOverviewExpandedGroups.add(details.dataset.restoreOverviewGroup);
-    else state.restoreOverviewExpandedGroups.delete(details.dataset.restoreOverviewGroup);
-  }, true);
+  $("#restorePlanOverview").addEventListener("click", (event) => {
+    const projectToggle = event.target.closest("[data-restore-overview-project-toggle]");
+    if (projectToggle) {
+      const projectId = projectToggle.dataset.restoreOverviewProjectToggle;
+      const project = projectToggle.closest("[data-restore-overview-project]");
+      const body = project?.querySelector(".restore-overview-project-body");
+      const open = projectToggle.getAttribute("aria-expanded") !== "true";
+      projectToggle.setAttribute("aria-expanded", String(open));
+      if (project) project.dataset.open = String(open);
+      if (body) body.hidden = !open;
+      if (open) state.restoreOverviewOpenProjectIds.add(projectId);
+      else state.restoreOverviewOpenProjectIds.delete(projectId);
+      return;
+    }
+    const toggle = event.target.closest("[data-restore-overview-toggle]");
+    if (!toggle) return;
+    const groupKey = toggle.dataset.restoreOverviewToggle;
+    const group = toggle.closest("[data-restore-overview-group]");
+    const body = group?.querySelector(".restore-overview-group-body");
+    const open = toggle.getAttribute("aria-expanded") !== "true";
+    toggle.setAttribute("aria-expanded", String(open));
+    if (group) group.dataset.open = String(open);
+    if (body) body.hidden = !open;
+    if (open) state.restoreOverviewExpandedGroups.add(groupKey);
+    else state.restoreOverviewExpandedGroups.delete(groupKey);
+  });
   $("#saveSettingsButton").addEventListener("click", saveSettings);
   $("#decreaseRetainButton").addEventListener("click", () => adjustRetention(-1));
   $("#increaseRetainButton").addEventListener("click", () => adjustRetention(1));

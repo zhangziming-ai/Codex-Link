@@ -7,7 +7,7 @@ const path = require("node:path");
 const test = require("node:test");
 const { Worker } = require("node:worker_threads");
 
-const { applyBackupPolicy, createSnapshot, listSnapshots, normalizeConfig, restorePlan } = require("../server");
+const { applyBackupPolicy, createSnapshot, listSnapshots, normalizeConfig, resolveRestorePointInput, restorePlan } = require("../server");
 const {
   RestoreExecutionError,
   executeRestoreTransaction,
@@ -90,6 +90,28 @@ test("new restore points contain and pass per-file SHA-256 integrity", (t) => {
   assert.equal(snapshot.manifest.integrity.fileCount, 3);
   assert.equal(integrity.status, "verified");
   assert.equal(integrity.issueCount, 0);
+});
+
+test("restore accepts quoted paths and backup roots on a new device", (t) => {
+  const env = fixture();
+  t.after(() => fs.rmSync(env.root, { recursive: true, force: true }));
+
+  const snapshot = createVerifiedSnapshot(env);
+  const quoted = resolveRestorePointInput(`"${snapshot.snapshotDir}"`);
+  assert.equal(quoted.snapshotDir, snapshot.snapshotDir);
+  assert.equal(quoted.selectedFromRoot, false);
+
+  const fromBackupRoot = resolveRestorePointInput(env.cloud);
+  assert.equal(fromBackupRoot.snapshotDir, snapshot.snapshotDir);
+  assert.equal(fromBackupRoot.selectedFromRoot, true);
+
+  const plan = restorePlan({
+    snapshotDir: `"${env.cloud}"`,
+    targetCodexHome: env.target,
+    targetOS: process.platform
+  });
+  assert.equal(plan.snapshotDir, snapshot.snapshotDir);
+  assert.ok(plan.warnings.some((warning) => warning.includes("自动使用最新恢复点")));
 });
 
 test("verified restore creates rollback point and validates restored files", (t) => {
@@ -488,6 +510,8 @@ test("unified backup stores broad sections and item selections in one restore po
   assert.equal(snapshot.manifest.snapshotKind, "raw-unified");
   assert.equal(snapshot.manifest.selectionMode, true);
   assert.equal(snapshot.manifest.copied.length, 2);
+  assert.equal(snapshot.manifest.contentCounts.conversations, 1);
+  assert.equal(snapshot.manifest.contentCounts.skills, 1);
   assert.equal(listSnapshots(env.cloud).length, 1);
 
   const plan = restorePlan({

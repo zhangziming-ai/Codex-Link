@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Codex Link v1.0</title>
+    <title>Codex Link v1.2</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/styles.css" />
     <script src="/vendor/lucide.min.js"></script>
@@ -221,9 +221,10 @@
                 <span>恢复点文件夹</span>
                 <div class="inline-input">
                   <input id="restoreSnapshotInput" aria-describedby="restoreSnapshotHint" placeholder="选择或粘贴恢复点文件夹路径" />
+                  <button class="mini-button semantic-action action-adjust" id="browseRestorePointButton" type="button">浏览文件夹</button>
                   <button class="mini-button semantic-action action-restore" data-view-button="manager" type="button">从备份管理选择</button>
                 </div>
-                <small class="field-hint" id="restoreSnapshotHint">先选择备份文件夹，再从其中的历史恢复点进入恢复。</small>
+                <small class="field-hint" id="restoreSnapshotHint">新设备可直接浏览备份目录、Codex Link 目录或具体恢复点；选择备份根目录时会读取最新有效恢复点。</small>
               </label>
 
               <section class="deploy-mode restore-environment-mode">

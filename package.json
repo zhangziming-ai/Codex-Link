@@ -1,6 +1,6 @@
 {
   "name": "codex-link",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": false,
   "description": "Local backup folder and restore point manager for Codex environments.",
   "main": "desktop/main.js",

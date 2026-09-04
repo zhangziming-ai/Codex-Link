@@ -104,7 +104,7 @@ function createMainWindow(origin) {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#f4f7fa",
-    title: "Codex Link v1.0",
+    title: "Codex Link v1.2",
     ...platformIcon,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
