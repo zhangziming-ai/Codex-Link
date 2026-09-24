@@ -1,6 +1,9 @@
 const http = require("http");
 const crypto = require("crypto");
 const fs = require("fs");
+// Electron's patched fs treats any *.asar path as an archive. Project files
+// must be copied as ordinary bytes, including old or incomplete app.asar files.
+const rawFs = process.versions.electron ? require("original-fs") : fs;
 const path = require("path");
 const os = require("os");
 const { URL } = require("url");
@@ -249,6 +252,10 @@ function normalizeConfig(value = {}, options = {}) {
     cloudDir: resolveConfiguredPath(value.cloudDir, defaults.cloudDir, { platform, homeDir: home }),
     include: { ...defaults.include, ...(value.include || {}) },
     retainSnapshots: normalizeRetention(value.retainSnapshots),
+    appearance: {
+      theme: ["light", "dark", "system"].includes(value.appearance?.theme) ? value.appearance.theme : "light",
+      reduceMotion: value.appearance?.reduceMotion === true
+    },
     restorePolicy: {
       autoRollback: true,
       crossSystemAdaptation: value.restorePolicy?.crossSystemAdaptation !== false,
@@ -1036,6 +1043,7 @@ function groupConversations(conversations) {
       map.set(key, {
         projectName: conversation.projectName,
         projectPath: conversation.projectPath,
+        directoryExists: Boolean(conversation.projectPath && statSafe(conversation.projectPath)?.isDirectory()),
         count: 0,
         latestAt: conversation.startedAt || conversation.modifiedAt,
         conversations: []
@@ -1221,9 +1229,11 @@ function deleteTestRestoreEnvironment({ root, baseDir }) {
 }
 
 function measureCopyPath(target) {
+  const fs = rawFs;
   const result = { totalBytes: 0, fileCount: 0 };
   function visit(current) {
-    const st = statSafe(current, true);
+    let st;
+    try { st = fs.lstatSync(current); } catch { return; }
     if (!st) return;
     if (st.isSymbolicLink()) {
       result.totalBytes += Buffer.byteLength(fs.readlinkSync(current));
@@ -1246,10 +1256,12 @@ function measureCopyPath(target) {
 }
 
 function copyPath(src, dest, options = {}) {
+  const fs = rawFs;
   const onChunk = typeof options.onChunk === "function" ? options.onChunk : () => {};
   const buffer = Buffer.allocUnsafe(8 * 1024 * 1024);
   function copyEntry(source, target) {
-    const st = statSafe(source, true);
+    let st;
+    try { st = fs.lstatSync(source); } catch {}
     if (!st) throw new Error(`备份源在复制时消失：${source}`);
     if (st.isSymbolicLink()) {
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -1313,6 +1325,41 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
     sourcePlatform: process.platform,
     projectFilesIncluded: false
   });
+  const requestedProjectPaths = [...new Set((Array.isArray(selected?.projectFiles) ? selected.projectFiles : []).map(String))];
+  const knownProjects = new Map(projectCatalog.projects.map((project) => [normalizeProjectPath(project.sourceRoot)?.comparisonKey, project]));
+  const skippedProjectFiles = [];
+  const projectFileJobs = requestedProjectPaths.flatMap((requestedPath) => {
+    const source = path.resolve(requestedPath);
+    const project = knownProjects.get(normalizeProjectPath(source)?.comparisonKey);
+    if (!project) throw new Error(`项目不在当前 Codex 项目清单中：${requestedPath}`);
+    if (!statSafe(source)?.isDirectory()) {
+      skippedProjectFiles.push({ projectId: project.projectId, source, reason: "项目目录不存在；对话记录仍可备份" });
+      return [];
+    }
+    if (fs.lstatSync(source).isSymbolicLink()) throw new Error(`项目目录是符号链接，请选择实际目录：${source}`);
+    if (source === path.parse(source).root) throw new Error(`不能把整个磁盘作为项目文件备份：${source}`);
+    const sourceReal = fs.realpathSync(source);
+    const cloudReal = fs.existsSync(resolvedCloud) ? fs.realpathSync(resolvedCloud) : resolvedCloud;
+    const snapshotReal = path.join(cloudReal, BACKUP_ROOT_DIR, RESTORE_POINTS_DIR, id);
+    const relativeSnapshot = path.relative(sourceReal, snapshotReal);
+    if (!relativeSnapshot || (!relativeSnapshot.startsWith("..") && !path.isAbsolute(relativeSnapshot))) {
+      throw new Error(`备份位置位于项目目录内，不能循环备份：${source}`);
+    }
+    return [{ projectId: project.projectId, source, target: path.join(snapshotDir, "payload", "project-files", project.projectId), label: `项目文件 ${project.displayName}`, measure: measureCopyPath(source) }];
+  });
+  const projectFilesById = new Map(projectFileJobs.map((job) => [job.projectId, job]));
+  plan.projectFiles = projectFileJobs.map((job) => ({ projectId: job.projectId, source: job.source, fileCount: job.measure.fileCount, sizeMb: Math.round(job.measure.totalBytes / 1048576 * 100) / 100 }));
+  plan.totalMb = Math.round((plan.totalMb + projectFileJobs.reduce((sum, job) => sum + job.measure.totalBytes, 0) / 1048576) * 100) / 100;
+  plan.skippedProjectFiles = skippedProjectFiles;
+  plan.warnings.push(...skippedProjectFiles.map((item) => `项目文件未备份：${item.source}（当前设备无此目录）；对应的历史对话仍按所选方案备份。`));
+  for (const project of projectCatalog.projects) {
+    const job = projectFilesById.get(project.projectId);
+    if (job) {
+      project.projectFilesIncluded = true;
+      project.filesPath = portablePath(path.relative(snapshotDir, job.target));
+    }
+  }
+  projectCatalog.projectFilesIncluded = projectFileJobs.length > 0;
   const backedConversations = listRecentConversations(resolvedHome).filter((item) =>
     (item.bucket === "archived" ? include?.archivedSessions : include?.sessions)
   );
@@ -1325,6 +1372,7 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
       ...copied.filter((item) => item.kind === "conversation").map((item) => item.projectPath || "__unknown__")
     ]).size,
     conversations: backedConversations.length + copied.filter((item) => item.kind === "conversation").length,
+    projectFiles: projectFileJobs.length,
     skills: fullSkillCount + copied.filter((item) => item.kind === "capability").length,
     apiConfigurationNotes: copied.filter((item) => item.kind === "api_tool" || item.metadataOnly).length
   };
@@ -1342,13 +1390,14 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
     selectionMode: copied.length > 0,
     selectedCounts: { ...selectedEntries.selectedCounts, copied: copied.length },
     contentCounts,
+    skippedProjectFiles,
     copied,
     portableProjects: {
       schemaVersion: projectCatalog.schemaVersion,
       path: "payload/projects.json",
       projectCount: projectCatalog.projectCount,
       threadCount: projectCatalog.threadCount,
-      projectFilesIncluded: false
+      projectFilesIncluded: projectFileJobs.length > 0
     },
     appVersion: APP_VERSION
   };
@@ -1373,8 +1422,9 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
       source: item.source,
       target: path.join(snapshotDir, item.target),
       label: item.title || item.name || item.kind || "所选内容"
-    }))
-  ].map((job) => ({ ...job, measure: measureCopyPath(job.source) }));
+    })),
+    ...projectFileJobs
+  ].map((job) => ({ ...job, measure: job.measure || measureCopyPath(job.source) }));
   const totalBytes = copyJobs.reduce((sum, job) => sum + job.measure.totalBytes, 0);
   const totalUnits = Math.max(1, copyJobs.reduce((sum, job) => sum + job.measure.fileCount, 0));
   let completedBytes = 0;
@@ -1420,8 +1470,22 @@ function createSnapshot({ codexHome, cloudDir, include, selected, retainSnapshot
       path.join(snapshotDir, "payload", "selected", "conversations")
     ],
     sourcePlatform: process.platform,
-    projectFilesIncluded: false
+    projectFilesIncluded: projectFileJobs.length > 0
   });
+  for (const project of projectCatalog.projects) {
+    const job = projectFilesById.get(project.projectId);
+    if (job) {
+      project.projectFilesIncluded = true;
+      project.filesPath = portablePath(path.relative(snapshotDir, job.target));
+    }
+  }
+  projectCatalog.projectFilesIncluded = projectFileJobs.length > 0;
+  const recordedProjectIds = new Set(projectCatalog.projects.map((item) => item.projectId));
+  const missingProjectFiles = projectFileJobs.filter((job) => !recordedProjectIds.has(job.projectId));
+  if (missingProjectFiles.length) {
+    fs.rmSync(snapshotDir, { recursive: true, force: true });
+    throw new Error(`所选项目文件缺少对应的已备份对话或任务索引：${missingProjectFiles.map((item) => item.label).join("、")}`);
+  }
   Object.assign(manifest.portableProjects, {
     projectCount: projectCatalog.projectCount,
     threadCount: projectCatalog.threadCount
@@ -2157,11 +2221,14 @@ function selectRestoreCatalogItems(catalog, restoreSelection = {}) {
 }
 
 
-function resolvePortableProjectMappings({ projectCatalog, requestedMappings, targetCodexHome, crossOS, sourceCodexHome, selectedProjectIds, restoreMode }) {
+function resolvePortableProjectMappings({ projectCatalog, requestedMappings, targetCodexHome, projectRestoreRoot, crossOS, sourceCodexHome, selectedProjectIds, restoreMode }) {
   const allProjects = Array.isArray(projectCatalog?.projects) ? projectCatalog.projects : [];
   const selected = Array.isArray(selectedProjectIds) ? new Set(selectedProjectIds.map(String)) : null;
   const projects = selected ? allProjects.filter((project) => selected.has(String(project.projectId))) : allProjects;
-  if (!crossOS) {
+  const hasProjectFiles = projects.some((project) => project.projectFilesIncluded && project.filesPath);
+  const root = String(projectRestoreRoot || "").trim();
+  const requested = Array.isArray(requestedMappings) ? requestedMappings : [];
+  if (!crossOS && !hasProjectFiles && !root && !requested.length) {
     const sourceInfo = normalizeProjectPath(sourceCodexHome);
     const targetInfo = normalizeProjectPath(targetCodexHome);
     const rewriteMappings = sourceInfo && targetInfo && sourceInfo.comparisonKey !== targetInfo.comparisonKey
@@ -2181,22 +2248,29 @@ function resolvePortableProjectMappings({ projectCatalog, requestedMappings, tar
     };
   }
 
-  const requested = Array.isArray(requestedMappings) ? requestedMappings : [];
   const requestedById = new Map(requested.map((item) => [String(item?.projectId || ""), item]));
+  const projectBase = root ? path.resolve(root) : "";
   const confirmed = projects.length === 0
     || restoreMode === "isolated_test"
-    || projects.every((project) => requestedById.has(project.projectId));
+    || projects.every((project) => requestedById.has(project.projectId) || Boolean(projectBase));
   const targetKeys = new Map();
   const mappings = projects.map((project) => {
     const request = requestedById.get(project.projectId)
-      || (restoreMode === "isolated_test" ? { mode: "placeholder" } : null);
+      || (projectBase ? {
+        mode: project.projectFilesIncluded && project.filesPath ? "restore" : "placeholder",
+        targetRoot: path.join(projectBase, safeFileName(`${project.projectId}-${project.displayName}`))
+      } : restoreMode === "isolated_test" ? { mode: "placeholder" } : null);
     if (!request) return { ...project, mode: "pending", targetRoot: null };
-    const mode = ["existing", "placeholder", "unresolved"].includes(request.mode) ? request.mode : "unresolved";
+    const mode = ["existing", "restore", "placeholder", "unresolved"].includes(request.mode) ? request.mode : "unresolved";
     let targetRoot = String(request.targetRoot || "").trim();
     if (mode === "existing") {
       if (!targetRoot) throw new Error(`项目 ${project.displayName} 选择了现有目录，但未提供目标路径。`);
       const stat = statSafe(targetRoot);
       if (!stat?.isDirectory()) throw new Error(`项目目标目录不存在：${targetRoot}`);
+    } else if (mode === "restore") {
+      if (!project.projectFilesIncluded || !project.filesPath) throw new Error(`项目 ${project.displayName} 的备份不包含项目文件。`);
+      if (!targetRoot) throw new Error(`项目 ${project.displayName} 尚未指定文件恢复目录。`);
+      if (exists(targetRoot)) throw new Error(`项目文件恢复目录必须尚不存在，以避免覆盖已有文件：${targetRoot}`);
     } else if (!targetRoot) {
       const bucket = mode === "placeholder" ? "_codex-link-project-placeholders" : "_codex-link-unresolved";
       targetRoot = path.join(targetCodexHome, bucket, safeFileName(`${project.projectId}-${project.displayName}`));
@@ -2214,6 +2288,7 @@ function resolvePortableProjectMappings({ projectCatalog, requestedMappings, tar
       normalizedSourceRoot: project.normalizedSourceRoot,
       targetRoot,
       mode,
+      filesPath: project.filesPath || null,
       threadIds: project.threadIds,
       threadCount: project.threadCount,
       projectFilesIncluded: Boolean(project.projectFilesIncluded)
@@ -2223,6 +2298,14 @@ function resolvePortableProjectMappings({ projectCatalog, requestedMappings, tar
   const rewriteMappings = mappings
     .filter((item) => item.mode !== "pending" && item.targetRoot)
     .map((item) => ({ sourceRoot: item.sourceRoot, targetRoot: item.targetRoot, mode: item.mode, projectId: item.projectId }));
+  const restoreTargets = mappings.filter((item) => item.mode === "restore").map((item) => path.resolve(item.targetRoot));
+  for (let i = 0; i < restoreTargets.length; i += 1) {
+    for (let j = i + 1; j < restoreTargets.length; j += 1) {
+      if (restoreTargets[i].startsWith(`${restoreTargets[j]}${path.sep}`) || restoreTargets[j].startsWith(`${restoreTargets[i]}${path.sep}`)) {
+        throw new Error("多个项目文件恢复目录不能互相嵌套。");
+      }
+    }
+  }
   if (sourceCodexHome) rewriteMappings.push({ sourceRoot: sourceCodexHome, targetRoot: targetCodexHome, mode: "codex_home" });
   const pendingCount = mappings.filter((item) => item.mode === "pending").length;
   const unresolvedCount = mappings.filter((item) => item.mode === "unresolved").length;
@@ -2310,6 +2393,7 @@ function restorePlan({
   targetOS,
   restoreSelection,
   projectMappings,
+  projectRestoreRoot,
   restoreMode = "formal",
   databaseRestoreMode = "merge",
   confirmDatabaseReplace = false,
@@ -2362,12 +2446,25 @@ function restorePlan({
   const portableProjectPlan = resolvePortableProjectMappings({
     projectCatalog,
     requestedMappings: projectMappings,
+    projectRestoreRoot,
     targetCodexHome: target,
     crossOS: adaptationPlan.crossOS,
     sourceCodexHome: manifest.codexHome,
     selectedProjectIds: fullStateDbSelected ? undefined : selectedProjectIds,
     restoreMode
   });
+  const projectFileCopies = portableProjectPlan.mappings
+    .filter((item) => item.mode === "restore")
+    .map((item) => {
+      const source = resolveInside(resolvedSnapshotDir, validateRelativePath(item.filesPath));
+      if (!statSafe(source)?.isDirectory()) throw new Error(`恢复点缺少项目文件：${item.displayName}`);
+      const projectTarget = path.resolve(item.targetRoot);
+      if (projectTarget === target || projectTarget.startsWith(`${target}${path.sep}`)
+        || projectTarget === resolvedSnapshotDir || projectTarget.startsWith(`${resolvedSnapshotDir}${path.sep}`)) {
+        throw new Error(`项目文件目标不能位于 Codex 数据目录或恢复点内：${projectTarget}`);
+      }
+      return { projectId: item.projectId, source, target: projectTarget, label: item.displayName };
+    });
   adaptationPlan.projectPathMappings = portableProjectPlan.mappings;
   const mappings = [];
   const skippedMappings = catalog
@@ -2527,6 +2624,7 @@ function restorePlan({
     adaptationPlan,
     portableProjects: projectCatalog,
     projectPathMappings: portableProjectPlan.mappings,
+    projectFileCopies,
     projectMappingStats: portableProjectPlan.stats || { total: portableProjectPlan.mappings.length, processed: portableProjectPlan.mappings.length, pending: 0, unresolved: 0, conflicts: 0 },
     pathRewriteMappings: portableProjectPlan.rewriteMappings,
     sqliteMetadata: manifest.sqlite || null,

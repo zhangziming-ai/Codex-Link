@@ -28,6 +28,8 @@ coverage/
 
 # Build and release artifacts
 dist/
+dist-beta*/
+dist-v*/
 release/
 target/
 out/

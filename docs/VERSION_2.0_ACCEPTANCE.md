@@ -2,19 +2,19 @@
 
 本清单固定使用 1–13 编号。后续反馈请直接写“第 N 项 + 现象/截图”，编号不再重排。
 
-## 当前交付物
+## 当前交付物（UI-01 · 2026-09-11）
+
+用户已确认本次先交付 Windows 版，Mac 验证另行安排。以下为本次产物，旧版 Mac 包和旧截图不作为当前证据。
 
 - Windows 安装包：`dist/Codex-Link-Setup-2.0.0-x64.exe`
-- Windows SHA-256：`380b7a3b65e748c53b8dac37124e82cec43efae826faefa82a3abc705650872b`
+- Windows SHA-256：`ebe6e52f46b14e11b9ec4afe125baee617841352aa2890825d697dafb29fae00`
+- 校验文件：`dist/Codex-Link-Setup-2.0.0-x64.exe.sha256.txt`
 - Windows 解压程序：`dist/win-unpacked/Codex Link.exe`
-- Mac M 系列源码包：`release/Codex-Link-2.0.0-mac-arm64-source.zip`
-- Mac M 系列未签名应用包：`release/Codex-Link-2.0.0-mac-arm64-unsigned-app.zip`
-- Mac 未签名应用包 SHA-256：`4c8c60445b2079c3301b782f493588799353116e82b9fa2bafe8630d310941ad`
-- Mac 自动构建：`.github/workflows/build-macos-arm64.yml`
-- UI 验收截图：`ui-verification/prism-buttons-20260825/`
-- 自动自检报告：`qa/reports/self-check-latest.md`
-
-> Windows 安装包当前未使用商业代码签名证书，Authenticode 状态为 `NotSigned`。内部测试可用；公开分发前建议签名。
+- UI 截图与运行证据：`ui-verification/ui01-2.0/`
+- 设计验收：`design-qa.md`
+- 实现与范围：`docs/UI01_2.0_IMPLEMENTATION.md`
+- 自动检查 52/52；UI 交互 8 项、动效 4 项通过；打包应用及临时目录安装/卸载测试通过。
+- 阶段检查自动项 76/76，独立用户评审未提交；不声称正式发布评审已通过。
 
 ## 1–13 项查收表
 
@@ -68,7 +68,7 @@
 
 ### 9. 全局按钮验收
 
-- 调整：所有按钮使用有色玻璃底；扫描、文件夹、备份、恢复、风险、保存、调整和重置具有不同语义色；悬停时增加明显上浮、亮度/饱和度、双层阴影、宽幅玻璃扫光和主色边缘流光，按压时下沉。
+- 调整：所有按钮使用有色玻璃底；扫描、文件夹、备份、恢复、风险、保存、调整和重置具有不同语义色；按 UI-01 使用柔和漫反射、圆润体积与克制的悬停/按压反馈；背景光纹轻微跟随交互，减少动态效果时停止。
 - 查收：依次检查五页的普通、悬停、按压、禁用按钮和删除按钮。
 - 通过标准：没有透明无色按钮；没有点状高光/星光；动效沿按钮主色移动；高风险操作为红/灰语义。
 
@@ -87,7 +87,7 @@
 ### 12. macOS M 系列版本
 
 - 调整：DMG + ZIP 均固定 `arm64`；最低 macOS 12；包含 icns、hardened runtime、entitlements、架构/DMG/ZIP/启动验证和 Apple Silicon GitHub runner。
-- 已自动验证（Windows）：生成真实未签名 `.app.zip`；主程序 Mach-O 为 `arm64`；Bundle ID、最低系统版本、自定义 icns、`app.asar`、ZIP 结构和 Unix 执行权限通过。
+- 本次状态：按用户确认，Mac 验证后续单独安排；原有 Mac 文件不可视作本次 UI-01 已通过的产物。
 - 查收：先在 M1/M2/M3/M4 Mac 解压 `Codex-Link-2.0.0-mac-arm64-unsigned-app.zip` 并启动；再解压源码包运行 `npm run package:mac:arm64`，或手动运行 GitHub Actions 工作流生成 DMG。
 - 通过标准：生成 `Codex-Link-2.0.0-mac-arm64.dmg` 和 ZIP；`lipo -archs` 为 `arm64`；DMG 可挂载；ZIP 可解压；从最终 ZIP 解压的应用启动 8 秒不退出；`qa/reports/macos-arm64-release-latest.json` 为 `passed`。发布签名模式还必须证明 hardened runtime、entitlements、签名和公证票据均通过。
 - 当前限制：Windows 主机不能运行、签名或公证 Mac 应用，也不能恢复依赖 `codesign` 的 ASAR 完整性强制、创建/挂载最终 DMG；需要 Apple Silicon runner 完成剩余产物证据。

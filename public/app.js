@@ -6,6 +6,7 @@ const state = {
   folderCandidates: [],
   diskSpace: null,
   selectedProjects: new Map(),
+  selectedProjectFiles: new Map(),
   selectedConversations: new Map(),
   selectedCapabilities: new Map(),
   advancedQueries: { projects: "", conversations: "", skills: "", api: "", plugins: "" },
@@ -18,11 +19,13 @@ const state = {
   restoreSelectionInitialized: false,
   restoreSelectionQuery: "",
   restoreOpenProjectIds: new Set(),
-  restoreExpandedGroups: new Set(["projects"]),
+  restoreExpandedGroups: new Set(),
   restoreOverviewExpandedGroups: new Set(["projects"]),
   restoreOverviewOpenProjectIds: new Set(),
   restoreRecovery: null,
   testRestoreEnvironment: null,
+  managerSelectedId: null,
+  managerQuery: "",
   diagnosticArtifact: null
 };
 
@@ -279,6 +282,11 @@ function renderBackupActionContext() {
     : [...state.selectedCapabilities.values()].filter((item) => item.type !== "api_tool").length;
   const fineApiCount = [...state.selectedCapabilities.values()].filter((item) => item.type === "api_tool").length;
   const fineCount = fineConversationCount + fineSkillCount + fineApiCount;
+  const visual = $("#backupResultVisual");
+  if (visual && !visual.classList.contains("ready") && !visual.classList.contains("busy") && !visual.classList.contains("error")) {
+    $("#backupResultVisualTitle").textContent = `${selectedCount} 类内容`;
+    $("#backupResultVisualBody").textContent = fineCount ? `另有 ${fineCount} 项精细选择；预览后查看准确大小。` : "预览计划，查看准确大小和包含内容。";
+  }
   target.innerHTML = `
     <strong>主方案 ${selectedCount} 项${fineCount ? ` · 精细选择 ${fineCount} 项` : ""}</strong>
     <span>${sensitiveCount ? `${sensitiveCount} 项需在恢复时复核` : "高级单项选择会同步加入这一份主备份"}</span>
@@ -324,6 +332,7 @@ function selectedPayload(scope = "all") {
   const capabilities = [...state.selectedCapabilities.values()];
   return {
     conversations: ["capabilities", "skills", "api"].includes(scope) ? [] : conversations,
+    projectFiles: scope === "all" ? [...state.selectedProjectFiles.values()].map((item) => item.projectPath) : [],
     capabilities: ["conversations", "projects"].includes(scope)
       ? []
       : capabilities.filter((item) => scope === "skills" ? item.type !== "api_tool" : scope === "api" ? item.type === "api_tool" : true)
@@ -345,6 +354,18 @@ function switchView(viewId, options = {}) {
   if (options.updateHash !== false && window.location.hash.slice(1) !== targetId) {
     history.replaceState(null, "", `#${targetId}`);
   }
+  document.body.dataset.currentView = targetId;
+  const headlines = {
+    overview: ["工作空间 / 总览", ""],
+    backup: ["留住此刻，", "选择值得保存的内容。"],
+    restore: ["从一个时间点，", "继续你的工作。"],
+    manager: ["每一份积累，都有来处。", "你的时间收藏。"],
+    settings: ["让工具，适应你的习惯。", "设置"]
+  };
+  $("#viewEyebrow").textContent = headlines[targetId][0];
+  $("#viewTitle").textContent = headlines[targetId][1];
+  document.querySelector(".main").scrollTo({ top: 0, behavior: "instant" });
+  $all(".nav-item").forEach(button => button.setAttribute("aria-current", button.dataset.view === targetId ? "page" : "false"));
   renderIcons();
 }
 
@@ -380,6 +401,7 @@ function renderSettings() {
     return `
       <label class="check-item ${isAdvanced ? "advanced" : ""} ${permanentlyExcluded ? "credential-excluded" : ""}" ${permanentlyExcluded ? 'title="auth.json、登录 Token 和账号会话永久不进入备份"' : ""}>
         <input type="checkbox" data-include="${item.key}" ${!permanentlyExcluded && include[item.key] ? "checked" : ""} ${blockedByPolicy ? "disabled" : ""} />
+        <i data-lucide="${restoreCategoryByKey.get(item.key)?.icon || "folder"}" class="ui01-category-icon" aria-hidden="true"></i>
         <span>
           <strong>${escapeHtml(item.label)}</strong>
           <small>${escapeHtml(detail)}</small>
@@ -387,6 +409,11 @@ function renderSettings() {
       </label>
     `;
   }).join("");
+  const excludedOptions = $("#ui01ExcludedOptions");
+  if (excludedOptions) {
+    excludedOptions.replaceChildren();
+    $("#includeOptions").querySelectorAll(".check-item.advanced").forEach(item => excludedOptions.append(item));
+  }
   $all("[data-include]").forEach((input) => {
     input.addEventListener("change", renderBackupActionContext);
     input.addEventListener("change", () => {
@@ -396,6 +423,7 @@ function renderSettings() {
     });
   });
   renderBackupActionContext();
+  renderIcons();
   applyRestorePolicy();
 
   renderFolderCards();
@@ -535,60 +563,38 @@ function renderFolderCards() {
 }
 
 function renderOverview() {
-  if (!state.audit) return;
-  const conversations = state.audit.conversations || [];
-  const memorySection = sectionByKey("memories");
-  const memoryItems = Number(memorySection?.fileCount || 0);
-  const memoryProgress = Math.max(10, Math.min(100, Math.round((memoryItems / 200) * 100)));
-  $("#homeCodexPath").textContent = shortPath(state.audit.codexHome, 80);
-  $("#navBackupCount").textContent = state.backups.length ? String(state.backups.length) : "-";
-
-  const cards = [
-    {
-      title: "最近备份记录",
-      keys: [],
-      icon: "history",
-      desc: state.backups.length ? `${state.backups.length} 个可用恢复点` : "还没有恢复点",
-      tone: "timeline",
-      detail: state.backups.length
-        ? state.backups.slice(0, 4).map((item) => `<li><i></i><span><b>${escapeHtml(fmtDate(item.createdAt))}</b><small>${escapeHtml(item.id)} · ${fmtMb(item.totalMb)}</small></span></li>`).join("")
-        : `<li class="empty"><i></i><span><b>等待第一份备份</b><small>创建后会在这里形成恢复点时间线</small></span></li>`
-    },
-    { title: "个人记忆", keys: ["memories"], icon: "brain", desc: "偏好、长期上下文与项目记忆", tone: "memory" },
-    { title: "对话记录", keys: ["sessions", "archivedSessions"], icon: "messages-square", desc: `${conversations.length} 条最近对话`, tone: "core" },
-    { title: "能力库", keys: ["skills"], icon: "blocks", desc: `${capabilityCount()} 个 Skills 与工具项`, tone: "skills" },
-    {
-      title: "安全检查",
-      keys: ["plugins", "tools", "auth"],
-      icon: "shield-alert",
-      desc: "凭据与授权需单独确认",
-      tone: "risk"
-    }
-  ];
-
-  $("#assetCards").innerHTML = cards.map((card) => {
-    const exists = card.tone === "timeline" ? state.backups.length > 0 : card.keys.some((key) => sectionByKey(key)?.exists);
-    const includedCount = card.keys.filter((key) => isIncluded(key)).length;
-    const allIncluded = card.keys.length > 0 && includedCount === card.keys.length;
-    const action = allIncluded ? "已纳入备份" : includedCount ? "部分纳入" : card.tone === "risk" ? "恢复时复核" : "未纳入";
-    return `
-      <article class="asset-card ${card.tone === "risk" ? "warn" : ""} ${allIncluded ? "selected" : ""} tone-${card.tone}">
-        <span class="asset-icon"><i data-lucide="${card.icon}"></i></span>
-        <div>
-          <strong>${escapeHtml(card.title)}</strong>
-          <p>${escapeHtml(card.desc)}</p>
-          ${card.tone === "timeline"
-            ? `<ol class="backup-timeline">${card.detail}</ol>
-               <button class="timeline-link semantic-action action-preview" data-view-button="manager" type="button">查看全部备份记录<i data-lucide="chevron-right"></i></button>`
-            : card.tone === "memory"
-              ? `<div class="memory-asset-value"><b>${memoryItems}</b><span>条记忆资产</span></div>
-                 <div class="memory-asset-progress"><i style="width:${memoryProgress}%"></i></div>
-                 <small>${exists ? fmtMb(sectionSize(card.keys)) : "未发现"} · ${escapeHtml(action)}</small>`
-              : `<small>${card.tone === "risk" ? `路径差异 ${state.audit.windowsPathRefs?.length || 0} 类` : exists ? fmtMb(sectionSize(card.keys)) : "未发现"} · ${escapeHtml(action)}</small>`}
-        </div>
-      </article>
-    `;
-  }).join("");
+  const latest = state.backups[0];
+  const count = state.backups.length;
+  $("#navBackupCount").textContent = String(count);
+  $("#ui01BackupCount").textContent = state.config ? String(count).padStart(2, "0") : "—";
+  const latestDate = latest ? new Date(latest.createdAt) : null;
+  const today = latestDate && latestDate.toDateString() === new Date().toDateString();
+  const title = latest ? `${today ? "今天" : fmtDate(latest.createdAt).slice(5,10)} ${fmtDate(latest.createdAt).slice(11,16)}` : "等待第一份备份";
+  $("#ui01LatestBackup").innerHTML = `
+    <div class="ui01-latest-heading">
+      <span class="ui01-round-icon"><i data-lucide="${latest ? "layers" : "archive"}"></i></span>
+      <div><p>最近恢复点</p><h3>${escapeHtml(title)}</h3><span>${latest ? escapeHtml(fmtDate(latest.createdAt).slice(0,10) + " · " + (({win32:"Windows",darwin:"macOS",linux:"Linux"})[latest.sourceOS] || latest.sourceOS || "来源系统未知")) : "选择内容，创建一个可回到的时间点。"}</span></div>
+      <button class="icon-button semantic-action action-preview" data-view-button="manager" type="button" aria-label="查看恢复点详情"><i data-lucide="arrow-right"></i></button>
+    </div>
+    <div class="ui01-latest-metrics">
+      <span><b>${latest ? Number(latest.threadCount || 0) : "—"}</b> 条对话</span>
+      <span><b>${latest ? Number(latest.projectCount || 0) : "—"}</b> 个项目</span>
+      <span><b>${latest ? fmtMb(latest.totalMb) : "—"}</b> ${latest ? "" : "备份大小"}</span>
+    </div>`;
+  $("#ui01BackupCountNote").textContent = count ? "每一次保存，都可以重新出发。" : "从第一份备份开始，留住你的工作积累。";
+  if (state.audit) {
+    $("#homeCodexPath").textContent = state.audit.codexHome || "";
+    $("#ui01LocalAssets").innerHTML = [
+      ["对话记录", (state.audit.conversations || []).length + " 条", "messages-square"],
+      ["个人记忆", Number(sectionByKey("memories")?.fileCount || 0) + " 项", "brain"],
+      ["Skills 与能力", capabilityCount() + " 项", "blocks"],
+      ["路径复核", (state.audit.windowsPathRefs || []).length + " 类", "route"]
+    ].map(([label,value,icon]) => `<div><i data-lucide="${icon}"></i><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+  }
+  const path = currentBackupDir();
+  $("#ui01FooterPath").textContent = path || "尚未设置";
+  $("#ui01FooterPath").title = path || "";
+  $("#ui01FooterStatus").textContent = state.audit ? (path ? "本地运行" : "请选择文件夹") : "等待扫描";
   renderIcons();
 }
 
@@ -707,9 +713,19 @@ function renderAdvancedOptions() {
     const projectId = item.projectPath || item.projectName;
     return `<label class="selection-item project-selection-item">
       <input type="checkbox" data-select-project="${escapeHtml(projectId)}" ${conversationsCovered || state.selectedProjects.has(projectId) ? "checked" : ""} ${conversationsCovered ? "disabled" : ""} />
-      <span><strong>${escapeHtml(item.projectName || "未命名项目")}</strong><small>${escapeHtml(conversationsCovered ? "已由上方主方案全量包含" : Number(item.count || item.conversations?.length || 0) + " 条记录 · " + shortPath(item.projectPath || "", 44))}</small></span>
+      <span><strong>${escapeHtml(item.projectName || "未命名项目")}</strong><small>${escapeHtml(conversationsCovered ? "对话已由主方案包含" : Number(item.count || item.conversations?.length || 0) + " 条记录 · " + shortPath(item.projectPath || "", 44))}</small></span>
     </label>`;
   }).join("");
+  const projectFileRows = visibleProjects.map((item) => {
+    const projectId = item.projectPath || item.projectName;
+    const available = item.directoryExists === true;
+    return `<label class="selection-item project-selection-item">
+      <input type="checkbox" data-select-project-files="${escapeHtml(projectId)}" ${available && state.selectedProjectFiles.has(projectId) ? "checked" : ""} ${available ? "" : "disabled"} />
+      <span><strong>${escapeHtml(item.projectName || "未命名项目")}</strong><small>${escapeHtml(available ? shortPath(item.projectPath || "", 72) : `目录不在当前设备 · ${shortPath(item.projectPath || "", 62)}`)}</small></span>
+    </label>`;
+  }).join("");
+  const unavailableProjectFiles = projects.filter((item) => item.directoryExists !== true).length;
+  const availableProjectFiles = projects.length - unavailableProjectFiles;
   const mcpRows = mcpServers.length ? mcpServers.map((item) => `<div class="advanced-data-row"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.source || "配置文件")}</small></span><em>${escapeHtml(statusLabels[item.migrationStatus] || "需复核")}</em></div>`).join("") : `<div class="selection-empty">未扫描到 MCP 接入。</div>`;
   const pluginRows = visiblePlugins.map((item) => `<div class="advanced-data-row has-hover-description" title="${escapeHtml(item.description || "插件缓存；恢复后需要重新授权或重装")}" data-tooltip="${escapeHtml(item.description || "插件缓存；恢复后需要重新授权或重装")}" tabindex="0"><span><strong>${escapeHtml(item.displayName || item.name)}</strong><small>${escapeHtml(item.name)}</small></span><em>需复核</em></div>`).join("");
   const selectedSkillCount = [...state.selectedCapabilities.values()].filter((item) => item.type !== "api_tool").length;
@@ -722,6 +738,13 @@ function renderAdvancedOptions() {
       count: conversationsCovered ? "全量已包含" : state.selectedProjects.size ? `已选 ${state.selectedProjects.size}` : "未选择",
       open: state.advancedOpen.has("projects"),
       body: `${advancedSearch("projects", "搜索项目名称或路径")}<p class="advanced-category-note">取消上方对话全量备份后，可在这里按项目精细选择；所选记录会加入底部主备份。</p><div class="selection-list advanced-selection-list">${projectRows || `<div class="selection-empty">没有匹配的项目记录。</div>`}</div><div class="selection-actions batch-actions"><button class="mini-button semantic-action action-adjust" data-select-all-projects type="button" title="选择全部项目，包括当前未显示的项目" ${conversationsCovered ? "disabled" : ""}>全选全部 ${projects.length} 个</button><button class="mini-button semantic-action action-reset" data-clear-projects type="button" ${conversationsCovered || !state.selectedProjects.size ? "disabled" : ""}>清空</button></div>`
+    }),
+    advancedCategory({
+      key: "projectFiles", icon: "folder", title: "项目文件", tone: "mint",
+      subtitle: `逐个选择要打包的项目代码与素材${unavailableProjectFiles ? ` · ${unavailableProjectFiles} 个历史目录不可用` : ""}`,
+      count: state.selectedProjectFiles.size ? `已选 ${state.selectedProjectFiles.size}` : "未选择",
+      open: state.advancedOpen.has("projectFiles"),
+      body: `<p class="advanced-category-note">每个可用项目会作为独立目录进入恢复点；旧电脑上才存在的目录仍可保留对话记录，但无法从本机备份文件。</p><div class="selection-list advanced-selection-list">${projectFileRows || `<div class="selection-empty">没有匹配的项目。</div>`}</div><div class="selection-actions batch-actions"><button class="mini-button semantic-action action-adjust" data-select-all-project-files type="button" title="选择全部可用项目，包括当前未显示的项目" ${availableProjectFiles ? "" : "disabled"}>全选可用的 ${availableProjectFiles} 个</button><button class="mini-button semantic-action action-reset" data-clear-project-files type="button" ${state.selectedProjectFiles.size ? "" : "disabled"}>清空</button></div>`
     }),
     advancedCategory({
       key: "conversations", icon: "messages-square", title: "对话记录", tone: "blue",
@@ -806,6 +829,13 @@ function bindAdvancedOptionEvents() {
     else state.selectedProjects.delete(projectId);
     renderAdvancedOptions();
   }));
+  $all("[data-select-project-files]").forEach((input) => input.addEventListener("change", () => {
+    const item = (state.audit.conversationGroups || []).find((entry) => (entry.projectPath || entry.projectName) === input.dataset.selectProjectFiles);
+    if (!item?.projectPath || item.directoryExists !== true) return;
+    if (input.checked) state.selectedProjectFiles.set(item.projectPath, item);
+    else state.selectedProjectFiles.delete(item.projectPath);
+    renderAdvancedOptions();
+  }));
   $all("[data-advanced-include]").forEach((input) => input.addEventListener("change", () => {
     setIncluded(input.dataset.advancedInclude, input.checked);
     renderOverview();
@@ -813,6 +843,16 @@ function bindAdvancedOptionEvents() {
   }));
   $("[data-select-all-projects]")?.addEventListener("click", selectAllProjects);
   $("[data-clear-projects]")?.addEventListener("click", clearProjects);
+  $("[data-select-all-project-files]")?.addEventListener("click", () => {
+    for (const item of state.audit?.conversationGroups || []) {
+      if (item.directoryExists === true && item.projectPath) state.selectedProjectFiles.set(item.projectPath, item);
+    }
+    renderAdvancedOptions();
+  });
+  $("[data-clear-project-files]")?.addEventListener("click", () => {
+    state.selectedProjectFiles.clear();
+    renderAdvancedOptions();
+  });
   $("[data-select-all-conversations]")?.addEventListener("click", selectAllConversations);
   $("[data-clear-conversations]")?.addEventListener("click", clearConversations);
   $("[data-select-all-skills]")?.addEventListener("click", selectAllSkills);
@@ -872,17 +912,24 @@ function renderBackups() {
   $("#navBackupCount").textContent = state.backups.length ? String(state.backups.length) : "-";
   const list = $("#backupList");
   if (!list) return;
-  list.innerHTML = state.backups.length ? state.backups.map((item, index) => `
-    <article class="snapshot-card ${index === 0 ? "is-latest" : ""}">
+  const query = (state.managerQuery || "").trim().toLocaleLowerCase();
+  const matches = state.backups.filter(item => [item.id, fmtDate(item.createdAt), item.sourceOS, item.snapshotDir].join(" ").toLocaleLowerCase().includes(query));
+  const latest = matches.find(item => item.id === state.managerSelectedId) || matches[0];
+  state.managerSelectedId = latest?.id || null;
+  const count = $("#ui01SearchCount");
+  if (count) count.textContent = query ? `找到 ${matches.length} 个恢复点` : `共 ${matches.length} 个恢复点`;
+  list.innerHTML = matches.length ? matches.map((item, index) => `
+    <article class="snapshot-card ${item.id === state.managerSelectedId ? "is-latest" : ""}">
       <div class="card-title-row">
         <div>
-          <div class="card-title">${escapeHtml(item.id)}</div>
+          <div class="ui01-snapshot-heading"><span class="ui01-snapshot-date">${escapeHtml(fmtDate(item.createdAt).slice(5,10).replace("/", "."))}</span><div><div class="card-title">${escapeHtml(fmtDate(item.createdAt).slice(11,16))}</div><small>${escapeHtml(item.id)}</small></div></div>
           <div class="card-desc">${fmtDate(item.createdAt)} · ${escapeHtml(item.sourceOS || "未知系统")} · ${item.projectCount || 0} 个项目 / ${item.threadCount || 0} 个对话 · ${item.projectFilesIncluded ? "包含项目文件" : "不含项目文件"}${item.rebuiltFromLegacy ? " · 由旧版备份重建" : ""}</div>
         </div>
         <span class="badge">${fmtMb(item.totalMb)}</span>
       </div>
       <div class="card-meta">${escapeHtml(item.snapshotDir)}</div>
       <div class="action-row">
+        <button class="mini-button" data-select-backup="${escapeHtml(item.id)}" aria-pressed="${item.id === state.managerSelectedId}" type="button">查看详情</button>
         <button class="mini-button restore-choice-button semantic-action action-restore" data-use-backup="${escapeHtml(item.snapshotDir)}" type="button">用于恢复</button>
         <button class="mini-button danger" data-delete-backup="${escapeHtml(item.snapshotDir)}" data-backup-id="${escapeHtml(item.id)}" type="button">删除</button>
       </div>
@@ -890,19 +937,18 @@ function renderBackups() {
   `).join("") : `
     <div class="empty-state recovery-empty">
       <span class="empty-icon" aria-hidden="true"><i data-lucide="archive"></i></span>
-      <strong>还没有恢复点</strong>
-      <p>可使用上方操作创建第一份备份，或更换到已有恢复点的备份文件夹。</p>
+      <strong>${query ? "没有匹配的恢复点" : "还没有恢复点"}</strong>
+      <p>${query ? "试试其他日期或名称，或清空搜索。" : "创建第一份备份，或选择已有恢复点的备份文件夹。"}</p>
     </div>
   `;
 
   const detail = $("#managerBackupDetail");
-  const latest = state.backups[0];
   if (detail) {
     detail.innerHTML = latest ? `
       <div class="restore-point-detail">
         <span class="detail-icon" aria-hidden="true"><i data-lucide="history"></i></span>
         <div>
-          <span>最近备份恢复点</span>
+          <span>已选恢复点</span>
           <strong>${escapeHtml(fmtDate(latest.createdAt))}</strong>
           <p>${escapeHtml(shortPath(latest.snapshotDir, 78))}</p>
         </div>
@@ -926,6 +972,14 @@ function renderBackups() {
     `;
   }
 
+  $all("[data-select-backup]").forEach(button => {
+    button.addEventListener("click", () => {
+      state.managerSelectedId = button.dataset.selectBackup;
+      renderBackups();
+      const selected = [...document.querySelectorAll("[data-select-backup]")].find(item => item.dataset.selectBackup === state.managerSelectedId);
+      selected?.focus({ preventScroll: true });
+    });
+  });
   renderManagerLibrary();
 
   $all("[data-use-backup]").forEach((button) => {
@@ -1365,7 +1419,7 @@ function setBackupVisual(visualState, result) {
   }
   if (visualState === "plan" || visualState === "created") {
     const selectionMode = Boolean(result?.manifest?.selectionMode);
-    kicker.textContent = selectionMode ? "Unified backup" : visualState === "plan" ? "Backup plan" : "Backup complete";
+    kicker.textContent = selectionMode ? "统一备份" : visualState === "plan" ? "备份计划" : "备份完成";
     title.textContent = visualState === "plan" ? "计划已就绪" : "备份已创建";
     body.textContent = visualState === "plan"
       ? "确认包含内容和恢复点路径后，即可创建备份。"
@@ -1504,7 +1558,7 @@ function resetRestoreSelection() {
   state.restoreSelectionInitialized = false;
   state.restoreSelectionQuery = "";
   state.restoreOpenProjectIds = new Set();
-  state.restoreExpandedGroups = new Set(["projects"]);
+  state.restoreExpandedGroups = new Set();
   state.restoreOverviewExpandedGroups = new Set(["projects"]);
   state.restoreOverviewOpenProjectIds = new Set();
   state.restoreOperation = null;
@@ -1757,7 +1811,7 @@ function renderRestoreSelection(items = state.restoreAvailableItems) {
 function applyRestoreSelectionResult(result) {
   if (!state.restoreSelectionInitialized) {
     state.restoreOpenProjectIds = new Set();
-    state.restoreExpandedGroups = new Set(["projects"]);
+    state.restoreExpandedGroups = new Set();
     state.restoreOverviewExpandedGroups = new Set(["projects"]);
     state.restoreOverviewOpenProjectIds = new Set();
   }
@@ -1953,6 +2007,20 @@ function renderRestorePlanOverview(result, mode = "plan") {
 
 function setRestoreActionState(result) {
   state.restorePlan = result || null;
+  const step = state.restoreSelectionInitialized ? 2 : 1;
+  document.querySelectorAll("[data-restore-step]").forEach(item => {
+    if (Number(item.dataset.restoreStep) === step) item.setAttribute("aria-current", "step");
+    else item.removeAttribute("aria-current");
+  });
+  const number = $("#ui01RestoreNumber");
+  if (number) number.textContent = String(step).padStart(2, "0");
+  const targetLabel = $("#ui01RestoreTargetLabel");
+  if (targetLabel) targetLabel.textContent = selectedRestoreMode() === "formal" ? "正式 Codex 数据 · 请确认目标" : "独立测试环境";
+  const status = $("#ui01RestoreStatus");
+  if (status) {
+    status.dataset.ready = String(Boolean(result?.canExecute));
+    status.textContent = result?.canExecute ? "计划已校验，可恢复所选内容。" : result?.requiresProjectMapping ? "请先确认项目映射，再重新校验。" : result ? "当前计划不能执行，请展开完整计划查看原因。" : state.restoreSelectionInitialized ? "选择已更新，请重新校验后恢复。" : "选择恢复点，读取可恢复内容。";
+  }
   const planButton = $("#restorePlanButton");
   const executeButton = $("#restoreExecuteButton");
   if (!planButton || !executeButton) return;
@@ -1986,7 +2054,7 @@ function renderProjectMappings(result) {
   const list = $("#projectMappingList");
   if (!panel || !list) return;
   const mappings = Array.isArray(result?.projectPathMappings) ? result.projectPathMappings : [];
-  const visible = Boolean(result?.adaptationPlan?.crossOS && mappings.length);
+  const visible = Boolean(mappings.length && (result?.adaptationPlan?.crossOS || mappings.some((item) => item.projectFilesIncluded || item.mode !== "same_system")));
   panel.hidden = !visible;
   if (!visible) {
     list.innerHTML = "";
@@ -2003,14 +2071,15 @@ function renderProjectMappings(result) {
   list.innerHTML = statsHtml + mappings.map((item) => {
     const mode = item.mode === "pending" ? "unresolved" : item.mode;
     return `
-      <div class="project-mapping-row" data-project-id="${escapeHtml(item.projectId)}" data-source-root="${escapeHtml(item.sourceRoot || "")}">
+      <div class="project-mapping-row" data-project-id="${escapeHtml(item.projectId)}" data-source-root="${escapeHtml(item.sourceRoot || "")}" data-has-project-files="${item.projectFilesIncluded ? "true" : "false"}">
         <div class="project-mapping-source">
           <strong>${escapeHtml(item.displayName || "未命名项目")}</strong>
           <small>${escapeHtml(item.sourceRoot || "")}</small>
           <em>${escapeHtml(String(item.threadCount || 0))} 个对话 · ${item.projectFilesIncluded ? "包含项目源文件" : "不包含项目源文件"}</em>
         </div>
         <select class="project-mapping-mode" aria-label="${escapeHtml(item.displayName || "项目")} 映射方式">
-          <option value="existing" ${mode === "existing" ? "selected" : ""}>选择现有目录</option>
+          ${item.projectFilesIncluded ? `<option value="restore" ${mode === "restore" ? "selected" : ""}>从备份恢复项目文件</option>` : ""}
+          <option value="existing" ${mode === "existing" || mode === "same_system" ? "selected" : ""}>使用现有目录</option>
           <option value="placeholder" ${mode === "placeholder" ? "selected" : ""}>创建占位目录</option>
           <option value="unresolved" ${mode === "unresolved" ? "selected" : ""}>暂不映射</option>
         </select>
@@ -2159,6 +2228,13 @@ function renderRestoreExecutionResult(result) {
   renderRestorePlanOverview(result, "complete");
   $("#restoreResult").textContent = JSON.stringify(result, null, 2);
   setRestoreActionState(null);
+  document.querySelectorAll("[data-restore-step]").forEach(item => {
+    if (item.dataset.restoreStep === "3") item.setAttribute("aria-current", "step");
+    else item.removeAttribute("aria-current");
+  });
+  $("#ui01RestoreNumber").textContent = "03";
+  $("#ui01RestoreStatus").textContent = "恢复完成，逐项校验通过。";
+  $("#ui01RestoreStatus").dataset.ready = "true";
   renderIcons();
 }
 
@@ -2263,6 +2339,10 @@ async function runAudit() {
     setStatus("busy", "扫描中");
     const codexHome = encodeURIComponent($("#settingsCodexHome")?.value || state.config?.codexHome || "");
     state.audit = await api(`/api/audit?codexHome=${codexHome}`);
+    const availablePaths = new Set((state.audit.conversationGroups || []).filter((item) => item.directoryExists === true).map((item) => item.projectPath));
+    for (const projectPath of state.selectedProjectFiles.keys()) {
+      if (!availablePaths.has(projectPath)) state.selectedProjectFiles.delete(projectPath);
+    }
     renderOverview();
     renderAdvancedOptions();
     setStatus("ready", "扫描完成");
@@ -2464,6 +2544,7 @@ async function restorePlan() {
     const payload = {
       snapshotDir,
       targetCodexHome: $("#restoreTargetInput").value.trim(),
+      projectRestoreRoot: $("#projectMappingBaseInput").value.trim(),
       targetOS: selectedRestoreTargetOS(),
       restoreMode: selectedRestoreMode(),
       databaseRestoreMode: $("#databaseRestoreMode").value,
@@ -2472,7 +2553,7 @@ async function restorePlan() {
     const restoreSelection = currentRestoreSelectionPayload();
     if (restoreSelection) payload.restoreSelection = restoreSelection;
     const projectMappings = currentProjectMappingsPayload();
-    if (projectMappings) payload.projectMappings = projectMappings;
+    if (projectMappings && !payload.projectRestoreRoot) payload.projectMappings = projectMappings;
     let result = await api("/api/restore-plan", {
       method: "POST",
       body: JSON.stringify(payload)
@@ -2672,6 +2753,7 @@ function closeFolderPicker() {
 
 function showError(error) {
   const message = error?.message || String(error);
+  window.ui01?.showError(message);
   const backupResult = $("#backupResult");
   const restoreResult = $("#restoreResult");
   if (backupResult) backupResult.textContent = message;
@@ -2679,6 +2761,10 @@ function showError(error) {
 }
 
 function wireEvents() {
+  $("#ui01BackupSearch")?.addEventListener("input", event => {
+    state.managerQuery = event.target.value;
+    renderBackups();
+  });
   document.addEventListener("click", (event) => {
     const viewButton = event.target.closest("[data-view-button]");
     if (viewButton) switchView(viewButton.dataset.viewButton);
@@ -2715,11 +2801,11 @@ function wireEvents() {
       $("#projectMappingBaseInput").focus();
       return;
     }
-    const separator = selectedRestoreTargetOS() === "windows" ? "\\" : "/";
+    const separator = selectedRestoreTargetOS() === "windows" || /^[A-Za-z]:[\\/]/.test(base) ? "\\" : "/";
     document.querySelectorAll(".project-mapping-row").forEach((row) => {
       const name = row.querySelector(".project-mapping-source strong")?.textContent?.trim() || row.dataset.projectId;
-      row.querySelector(".project-mapping-mode").value = "existing";
-      row.querySelector(".project-mapping-target").value = `${base}${separator}${name}`;
+      row.querySelector(".project-mapping-mode").value = row.dataset.hasProjectFiles === "true" ? "restore" : "placeholder";
+      row.querySelector(".project-mapping-target").value = `${base}${separator}${row.dataset.projectId}-${name}`;
     });
     setRestoreActionState(null);
   });
@@ -2932,8 +3018,8 @@ async function init() {
   await loadFolderCandidates();
   await runAudit();
   await loadBackups();
-  const initialView = window.location.hash.slice(1);
-  if (initialView) switchView(initialView, { updateHash: false });
+  const initialView = window.location.hash.slice(1) || "overview";
+  switchView(initialView, { updateHash: false });
   renderIcons();
 }
 

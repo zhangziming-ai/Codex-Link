@@ -10,10 +10,10 @@ Languages: [English](README.md) | [简体中文](README.zh-CN.md)
 
 Project links: [Chinese quick start](docs/QUICK_START.zh-CN.md) | [Changelog](CHANGELOG.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [License](LICENSE)
 
-Downloads for v1.0.0:
+Downloads for v2.2.0:
 
-- Windows: download `Codex-Link-Setup-1.0.0-x64.exe` from the GitHub Release.
-- macOS Apple Silicon: download `Codex-Link-1.0.0-mac-arm64-source.zip` from the GitHub Release and build it on an Apple Silicon Mac. This release does not include a signed or notarized macOS installer.
+- Windows: download `Codex-Link-Setup-2.2.0-x64.exe` from the GitHub Release.
+- macOS Apple Silicon: a native v2.2.0 installer has not been verified on a Mac. Use the source repository to build locally if needed.
 - Checksums: verify release files with `SHA256SUMS.txt`.
 
 Current capabilities:
@@ -22,6 +22,8 @@ Current capabilities:
 - Show conversations, storage sections, installed skills, plugin skills, MCP servers, and migration risks.
 - Preview a backup plan before copying files.
 - Create one unified restore point containing both broad categories and individually selected conversations or skills.
+- Select individual local project folders for file backup, or select all currently available project folders. Missing paths from another computer are skipped while their conversations remain eligible for backup.
+- Restore selected project files under a chosen destination root, retaining a separate folder per project and updating project paths in the restored Codex data.
 - Build recommended, safe-all, full, or custom restore plans from the items actually present in a restore point.
 - Create a timestamped restore point with a persisted per-file SHA-256 manifest.
 - Validate restore-point contents before any target files are changed.

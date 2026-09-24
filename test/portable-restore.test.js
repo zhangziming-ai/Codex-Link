@@ -164,6 +164,76 @@ test("project catalog rebuilds from SQLite and JSONL without duplicate Windows r
   assert.deepEqual(catalog.projects.map((item) => item.threadCount), [1, 1]);
 });
 
+test("selected project files restore under a new root and conversations follow the new path", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-link-project-files-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = path.join(root, "source", ".codex");
+  const target = path.join(root, "target", ".codex");
+  const project = path.join(root, "source-projects", "Alpha");
+  const cloud = path.join(root, "backups");
+  const newProjectsRoot = path.join(root, "new-projects");
+  write(project, "src/main.txt", "project file content\n");
+  write(project, "dist/resources/app.asar", "not an asar archive\n");
+  const rollout = write(source, "sessions/2026/09/24/thread-alpha.jsonl", sessionText({ id: "thread-alpha", cwd: project }));
+  createStateDb(path.join(source, "state_5.sqlite"), [{ id: "thread-alpha", cwd: project, rolloutPath: rollout }]);
+  const snapshot = createSnapshot({
+    codexHome: source, cloudDir: cloud,
+    include: { sessions: true, stateDb: true },
+    selected: { projectFiles: [project] }, dryRun: false
+  });
+  const catalog = loadOrRebuildProjectCatalog(snapshot.snapshotDir, snapshot.manifest);
+  assert.equal(catalog.projectFilesIncluded, true);
+  assert.equal(catalog.projects.filter((item) => item.projectFilesIncluded).length, 1);
+  const plan = restorePlan({ snapshotDir: snapshot.snapshotDir, targetCodexHome: target, projectRestoreRoot: newProjectsRoot });
+  assert.equal(plan.projectFileCopies.length, 1);
+  assert.equal(plan.canExecute, true);
+  const result = executeRestoreTransaction({ plan, cloudDir: cloud });
+  assert.equal(result.status, "restored");
+  const restoredProject = plan.projectPathMappings[0].targetRoot;
+  assert.equal(fs.readFileSync(path.join(restoredProject, "src", "main.txt"), "utf8"), "project file content\n");
+  assert.equal(fs.readFileSync(path.join(restoredProject, "dist", "resources", "app.asar"), "utf8"), "not an asar archive\n");
+  const db = new DatabaseSync(path.join(target, "state_5.sqlite"), { readOnly: true });
+  const row = db.prepare("SELECT cwd FROM threads WHERE id = ?").get("thread-alpha");
+  db.close();
+  assert.equal(normalizeProjectPath(row.cwd).comparisonKey, normalizeProjectPath(restoredProject).comparisonKey);
+  const undone = undoRestoreTransaction({ cloudDir: cloud, rollbackDir: result.rollbackPoint.path });
+  assert.equal(undone.status, "manual_rolled_back");
+  assert.equal(fs.existsSync(restoredProject), false);
+  const failedTarget = path.join(root, "failed-target", ".codex");
+  const failedProjectsRoot = path.join(root, "failed-projects");
+  const failingPlan = restorePlan({ snapshotDir: snapshot.snapshotDir, targetCodexHome: failedTarget, projectRestoreRoot: failedProjectsRoot });
+  assert.throws(() => executeRestoreTransaction({ plan: failingPlan, cloudDir: cloud, _testFailAfterApply: 1 }));
+  assert.equal(fs.existsSync(failingPlan.projectPathMappings[0].targetRoot), false);
+  assert.equal(fs.existsSync(path.join(failedTarget, "state_5.sqlite")), false);
+  const changedTarget = path.join(root, "changed-target", ".codex");
+  const changedPlan = restorePlan({ snapshotDir: snapshot.snapshotDir, targetCodexHome: changedTarget, projectRestoreRoot: path.join(root, "changed-projects") });
+  const changedResult = executeRestoreTransaction({ plan: changedPlan, cloudDir: cloud });
+  const changedFile = path.join(changedPlan.projectPathMappings[0].targetRoot, "src", "main.txt");
+  fs.writeFileSync(changedFile, "user changed this file\n");
+  const conflict = undoRestoreTransaction({ cloudDir: cloud, rollbackDir: changedResult.rollbackPoint.path });
+  assert.equal(conflict.status, "rollback_conflict");
+  assert.equal(fs.readFileSync(changedFile, "utf8"), "user changed this file\n");
+  assert.equal(fs.existsSync(path.join(changedTarget, "state_5.sqlite")), true);
+});
+
+test("missing historical project directories are reported and do not block conversation backup", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "codex-link-missing-project-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const source = path.join(root, ".codex");
+  const missingProject = path.join(root, "old-drive", "MissingProject");
+  const rollout = write(source, "sessions/2026/09/24/thread-missing.jsonl", sessionText({ id: "thread-missing", cwd: missingProject }));
+  createStateDb(path.join(source, "state_5.sqlite"), [{ id: "thread-missing", cwd: missingProject, rolloutPath: rollout }]);
+  const snapshot = createSnapshot({
+    codexHome: source, cloudDir: path.join(root, "backups"),
+    include: { sessions: true, stateDb: true },
+    selected: { projectFiles: [missingProject] }, dryRun: false
+  });
+  assert.equal(snapshot.manifest.portableProjects.projectFilesIncluded, false);
+  assert.equal(snapshot.manifest.skippedProjectFiles.length, 1);
+  assert.match(snapshot.manifest.plan.warnings.join("\n"), /项目文件未备份/);
+  assert.equal(loadOrRebuildProjectCatalog(snapshot.snapshotDir, snapshot.manifest).threadCount, 1);
+});
+
 test("backup v4 writes a threaded projects.json and SQLite geometry metadata", (t) => {
   const env = portableFixture();
   t.after(() => fs.rmSync(env.root, { recursive: true, force: true }));

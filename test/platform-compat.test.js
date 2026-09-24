@@ -36,12 +36,12 @@ function write(root, relative, content) {
 }
 
 test("macOS arm64 builder metadata coexists with the unchanged Windows NSIS target", () => {
-  assert.equal(packageJson.version, "1.2.0");
+  assert.equal(packageJson.version, "2.2.0");
   const desktopMain = fs.readFileSync(path.join(__dirname, "..", "desktop", "main.js"), "utf8");
   const publicHtml = fs.readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf8");
   const publicApp = fs.readFileSync(path.join(__dirname, "..", "public", "app.js"), "utf8");
-  assert.match(desktopMain, /title:\s*["']Codex Link v1\.2["']/);
-  assert.match(publicHtml, /<title>Codex Link v1\.2<\/title>/);
+  assert.match(desktopMain, /title:\s*["']Codex Link 2\.2 Beta["']/);
+  assert.match(publicHtml, /<title>Codex Link 2\.2 Beta<\/title>/);
   assert.match(publicHtml, /id="viewRollbackPointsButton"/);
   assert.match(publicApp, /data-restore-project-expand-row/);
   assert.match(publicApp, /toggleRestoreProjectDetails/);

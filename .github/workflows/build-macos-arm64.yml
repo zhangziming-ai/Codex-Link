@@ -14,9 +14,9 @@ on:
         default: false
         type: boolean
       release_tag:
-        description: Release tag to upload assets to, for example v1.0.0
+        description: Release tag to upload assets to, for example v2.2.0
         required: true
-        default: v1.0.0
+        default: v2.2.0
         type: string
 
 permissions:

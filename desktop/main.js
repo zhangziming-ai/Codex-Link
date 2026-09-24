@@ -99,12 +99,12 @@ function createMainWindow(origin) {
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 900,
-    minWidth: 1120,
-    minHeight: 700,
+    minWidth: 900,
+    minHeight: 620,
     show: false,
     autoHideMenuBar: true,
     backgroundColor: "#f4f7fa",
-    title: "Codex Link v1.2",
+    title: "Codex Link 2.2 Beta",
     ...platformIcon,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),

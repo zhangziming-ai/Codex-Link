@@ -3,12 +3,13 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Codex Link v1.2</title>
+    <title>Codex Link 2.2 Beta</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=2.2.0" />
+    <link rel="stylesheet" href="/ui01.css?v=2.2.0" />
     <script src="/vendor/lucide.min.js"></script>
   </head>
-  <body>
+  <body class="ui01" data-current-view="overview">
     <div class="app-shell">
       <aside class="sidebar" aria-label="主导航">
         <div class="window-controls" aria-hidden="true">
@@ -85,22 +86,26 @@
           </div>
         </header>
 
-        <section class="view active" id="overview">
-          <div class="home-hero">
-            <div class="hero-copy">
-              <p class="hero-kicker">本地备份状态</p>
-              <h2 id="homeHeroTitle">正在读取备份状态</h2>
-              <p id="homeHeroMessage">正在确认备份文件夹和最近备份恢复点。</p>
-              <div class="home-console-status" id="homeConsoleStatus"></div>
+        <section class="view active" id="overview" aria-label="总览">
+          <div class="ui01-hero">
+            <h2><span>把工作积累，</span><strong>好好留住。</strong></h2>
+            <p>对话、记忆与技能，都有可回到的时间点。</p>
+            <div class="ui01-hero-actions">
+              <button class="button primary semantic-action action-backup" data-view-button="backup" type="button"><i data-lucide="square-plus"></i><span>创建备份</span></button>
+              <button class="button secondary semantic-action action-restore" data-view-button="restore" type="button"><span>从备份恢复</span><i data-lucide="arrow-right"></i></button>
             </div>
           </div>
-
-          <div class="overview-layout compact-overview">
-            <section class="panel asset-panel">
-              <span class="visually-hidden" id="homeCodexPath"></span>
-              <div class="asset-grid" id="assetCards"></div>
+          <div class="ui01-overview-grid">
+            <section class="panel ui01-latest" id="ui01LatestBackup" aria-live="polite"><p>正在读取恢复点…</p></section>
+            <section class="panel ui01-count">
+              <span class="ui01-display-number" id="ui01BackupCount">—</span>
+              <h2>个恢复点</h2>
+              <p id="ui01BackupCountNote">每一次保存，都可以重新出发。</p>
+              <button class="button secondary semantic-action action-preview" data-view-button="manager" type="button">查看全部<i data-lucide="arrow-right"></i></button>
             </section>
           </div>
+          <details class="ui01-local-assets"><summary>本机资产与检查</summary><div id="ui01LocalAssets"></div></details>
+          <span class="visually-hidden" id="homeCodexPath"></span>
         </section>
 
         <section class="view" id="backup">
@@ -127,7 +132,7 @@
                 <div class="section-title-row">
                   <div>
                     <h2>默认备份方案</h2>
-                    <p>底部“预览计划”和“创建备份”以这里勾选的内容为准。</p>
+                    <p>右侧操作会将已勾选内容保存到同一份备份。</p>
                     <p class="backup-portability-note">将保存项目名称、项目路径和对话归属，但不包含项目目录中的代码与素材文件。</p>
                   </div>
                   <div class="default-plan-actions">
@@ -137,6 +142,7 @@
                   </div>
                 </div>
                 <div class="check-grid" id="includeOptions"></div>
+                <details class="ui01-excluded-options"><summary>排除项与高风险内容</summary><div id="ui01ExcludedOptions" class="check-grid"></div></details>
               </div>
 
               <details class="advanced-box">
@@ -152,33 +158,20 @@
                 </div>
               </details>
 
-              <div class="action-row page-action-bar">
-                <div class="action-context" id="backupActionContext" aria-live="polite">
-                  <strong>正在读取备份内容</strong>
-                  <span>敏感内容默认保持排除</span>
-                </div>
-                <button class="button secondary semantic-action action-preview" id="previewBackupButton" type="button">
-                  <span class="button-icon" aria-hidden="true"><i data-lucide="list-checks"></i></span>
-                  <span>预览计划</span>
-                </button>
-                <button class="button primary semantic-action action-backup" id="createBackupButton" type="button">
-                  <span class="button-icon" aria-hidden="true"><i data-lucide="archive"></i></span>
-                  <span>创建备份</span>
-                </button>
-              </div>
+
             </section>
 
             <section class="panel backup-result-panel">
               <div class="panel-header">
                 <div>
-                  <h2>执行结果</h2>
+                  <h2>这一次，保存什么。</h2>
                   <p>预览或创建后会显示恢复点路径、包含内容和大小。</p>
                 </div>
               </div>
               <div class="result-visual" id="backupResultVisual" aria-live="polite">
                 <div>
-                  <span id="backupResultVisualKicker">Backup output</span>
-                  <strong id="backupResultVisualTitle">等待生成</strong>
+                  <span id="backupResultVisualKicker">备份汇总</span>
+                  <strong id="backupResultVisualTitle">准备好了。</strong>
                   <p id="backupResultVisualBody">恢复点路径、包含内容、大小和提醒会在这里汇总。</p>
                   <div class="backup-progress" id="backupProgress" hidden>
                     <div class="backup-progress-track" role="progressbar" aria-label="备份进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
@@ -195,6 +188,20 @@
                 </div>
                 <i data-lucide="file-check-2" aria-hidden="true"></i>
               </div>
+              <div class="action-row page-action-bar">
+                <div class="action-context" id="backupActionContext" aria-live="polite">
+                  <strong>正在读取备份内容</strong>
+                  <span>敏感内容默认保持排除</span>
+                </div>
+                <button class="button secondary semantic-action action-preview" id="previewBackupButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="list-checks"></i></span>
+                  <span>预览计划</span>
+                </button>
+                <button class="button primary semantic-action action-backup" id="createBackupButton" type="button">
+                  <span class="button-icon" aria-hidden="true"><i data-lucide="archive"></i></span>
+                  <span>创建备份</span>
+                </button>
+              </div>
               <div class="result-summary" id="backupResultSummary"></div>
               <div class="result-panel collapsed" id="backupResultPanel">
                 <div class="result-toolbar">
@@ -208,6 +215,7 @@
         </section>
 
         <section class="view" id="restore">
+          <ol class="ui01-restore-steps" aria-label="恢复步骤"><li data-restore-step="1" aria-current="step"><b>01</b>选择恢复点</li><li data-restore-step="2"><b>02</b>确认内容</li><li data-restore-step="3"><b>03</b>执行恢复</li></ol>
           <div class="restore-layout">
             <section class="panel restore-form-panel">
               <div class="panel-header">
@@ -227,6 +235,31 @@
                 <small class="field-hint" id="restoreSnapshotHint">新设备可直接浏览备份目录、Codex Link 目录或具体恢复点；选择备份根目录时会读取最新有效恢复点。</small>
               </label>
 
+              <section class="restore-selection-panel" id="restoreSelectionPanel" aria-labelledby="restoreSelectionTitle">
+                <div class="restore-selection-header">
+                  <div>
+                    <span class="restore-selection-kicker">恢复内容</span>
+                    <h2 id="restoreSelectionTitle">选择项目及其对话记录</h2>
+                    <p id="restoreSelectionMeta">读取恢复点后，可整组选项目，也可只勾选项目下的某些对话。</p>
+                  </div>
+                  <div class="restore-selection-actions">
+                    <button class="mini-button semantic-action action-adjust" id="restoreSelectAllButton" type="button" disabled>一键全选</button>
+                    <button class="mini-button semantic-action action-reset" id="restoreClearButton" type="button" disabled>清空</button>
+                  </div>
+                </div>
+                <label class="restore-selection-search" id="restoreSelectionSearchWrap" hidden>
+                  <i data-lucide="search" aria-hidden="true"></i>
+                  <input id="restoreSelectionSearch" type="search" placeholder="搜索项目、对话标题、Skills 或备份类别" autocomplete="off" />
+                </label>
+                <div class="restore-selection-empty" id="restoreSelectionEmpty">
+                  <i data-lucide="list-checks" aria-hidden="true"></i>
+                  <span>尚未读取恢复点内容</span>
+                </div>
+                <div class="restore-selection-groups" id="restoreSelectionGroups" hidden></div>
+                <p class="restore-selection-note" id="restoreSelectionNote">选择对话时会自动合并对应线程索引；“完整任务索引”仅用于明确需要整库替换的高级恢复。</p>
+              </section>
+
+              <details class="ui01-restore-environment"><summary>恢复位置与环境 <span id="ui01RestoreTargetLabel">独立测试环境</span></summary>
               <section class="deploy-mode restore-environment-mode">
                 <div>
                   <h2>恢复环境</h2>
@@ -254,30 +287,7 @@
                 <input id="restoreTargetInput" />
               </label>
 
-              <section class="restore-selection-panel" id="restoreSelectionPanel" aria-labelledby="restoreSelectionTitle">
-                <div class="restore-selection-header">
-                  <div>
-                    <span class="restore-selection-kicker">恢复内容</span>
-                    <h2 id="restoreSelectionTitle">选择项目及其对话记录</h2>
-                    <p id="restoreSelectionMeta">读取恢复点后，可整组选项目，也可只勾选项目下的某些对话。</p>
-                  </div>
-                  <div class="restore-selection-actions">
-                    <button class="mini-button semantic-action action-adjust" id="restoreSelectAllButton" type="button" disabled>一键全选</button>
-                    <button class="mini-button semantic-action action-reset" id="restoreClearButton" type="button" disabled>清空</button>
-                  </div>
-                </div>
-                <label class="restore-selection-search" id="restoreSelectionSearchWrap" hidden>
-                  <i data-lucide="search" aria-hidden="true"></i>
-                  <input id="restoreSelectionSearch" type="search" placeholder="搜索项目、对话标题、Skills 或备份类别" autocomplete="off" />
-                </label>
-                <div class="restore-selection-empty" id="restoreSelectionEmpty">
-                  <i data-lucide="list-checks" aria-hidden="true"></i>
-                  <span>尚未读取恢复点内容</span>
-                </div>
-                <div class="restore-selection-groups" id="restoreSelectionGroups" hidden></div>
-                <p class="restore-selection-note" id="restoreSelectionNote">选择对话时会自动合并对应线程索引；“完整任务索引”仅用于明确需要整库替换的高级恢复。</p>
-              </section>
-
+              </details>
               <div class="deploy-mode">
                 <div>
                   <h2>目标系统</h2>
@@ -308,12 +318,12 @@
                   <div>
                     <span class="restore-selection-kicker">项目路径适配</span>
                     <h2>确认每个项目在目标系统的位置</h2>
-                    <p>只改写项目归属和本地索引路径，不修改对话正文。未包含项目代码时可创建占位目录或保留为未关联。</p>
+                    <p>为项目文件选择新位置，并同步更新对话与索引的项目路径。未包含文件的项目可关联现有目录或创建占位目录。</p>
                   </div>
                 </div>
                 <div class="project-mapping-batch">
-                  <input id="projectMappingBaseInput" placeholder="批量目标根目录，例如 /Users/name/Projects" />
-                  <button class="mini-button semantic-action action-adjust" id="projectMappingBatchButton" type="button">按项目名自动匹配</button>
+                  <input id="projectMappingBaseInput" placeholder="项目文件统一恢复位置，例如 E:\Projects" />
+                  <button class="mini-button semantic-action action-adjust" id="projectMappingBatchButton" type="button">填入各项目位置</button>
                 </div>
                 <div class="project-mapping-list" id="projectMappingList"></div>
                 <p class="restore-selection-note">必须处理全部项目后重新生成计划；多个源项目不能指向同一目标目录。</p>
@@ -346,6 +356,18 @@
                 </div>
               </div>
 
+
+            </section>
+
+            <section class="panel restore-summary-panel is-empty">
+              <div class="panel-header">
+                <div>
+                  <span class="ui01-restore-number" id="ui01RestoreNumber">01</span><h2>确认，<br />再出发。</h2>
+                  <p>先校验恢复点，确认后执行恢复；失败时自动回退。</p>
+                </div>
+              </div>
+              <div class="result-summary" id="restoreSummary"></div>
+              <p id="ui01RestoreStatus" class="ui01-restore-status" role="status">选择恢复点，读取可恢复内容。</p>
               <div class="action-row restore-action-row">
                 <button class="button primary semantic-action action-restore" id="restorePlanButton" type="button">
                   <span class="button-icon" aria-hidden="true"><i data-lucide="route"></i></span>
@@ -363,22 +385,14 @@
                 </div>
                 <small id="restoreProgressEta">等待开始恢复</small>
               </div>
-            </section>
-
-            <section class="panel restore-summary-panel is-empty">
-              <div class="panel-header">
-                <div>
-                  <h2>恢复摘要</h2>
-                  <p>先校验恢复点，确认后执行恢复；失败时自动回退。</p>
-                </div>
-              </div>
-              <div class="result-summary" id="restoreSummary"></div>
+              <details class="ui01-plan-details"><summary>查看完整恢复计划与风险</summary>
               <div class="restore-plan-overview" id="restorePlanOverview">
                 <div class="restore-overview-empty">
                   <i data-lucide="list-tree" aria-hidden="true"></i>
                   <span>读取恢复点后，这里会显示恢复范围、目标系统和风险提醒。</span>
                 </div>
               </div>
+              </details>
               <details class="restore-technical-details" id="restoreTechnicalDetails">
                 <summary>
                   <span><i data-lucide="braces" aria-hidden="true"></i>技术详情</span>
@@ -425,6 +439,7 @@
                   <p>从备份恢复点再次恢复，或删除误创建的备份。</p>
                 </div>
               </div>
+              <label class="field ui01-search"><span>查找恢复点</span><input id="ui01BackupSearch" type="search" placeholder="日期、名称或来源系统" autocomplete="off" /></label><p id="ui01SearchCount" role="status"></p>
               <div class="snapshot-list" id="backupList"></div>
             </section>
 
@@ -432,7 +447,7 @@
               <div class="panel-header">
                 <div>
                   <h2>备份恢复点详情</h2>
-                  <p>查看最近备份恢复点的来源、大小与再次恢复操作。</p>
+                  <p>选择左侧恢复点，查看来源、大小与恢复操作。</p>
                 </div>
               </div>
               <div id="managerBackupDetail"></div>
@@ -504,6 +519,16 @@
               </div>
             </section>
 
+            <section class="panel ui01-appearance-panel">
+              <div class="panel-header"><div><h2>光线，由你决定。</h2><p>外观立即应用，并记住这台设备上的选择。</p></div></div>
+              <div class="ui01-theme-options" role="group" aria-label="界面外观">
+                <button class="button" type="button" data-ui01-theme="light" aria-pressed="false"><i data-lucide="sun"></i>浅色</button>
+                <button class="button" type="button" data-ui01-theme="dark" aria-pressed="false"><i data-lucide="moon"></i>深色</button>
+                <button class="button" type="button" data-ui01-theme="system" aria-pressed="false"><i data-lucide="monitor"></i>跟随系统</button>
+              </div>
+              <label class="ui01-motion-option"><span><strong>减少动态效果</strong><small>停止背景流动与 Logo 动画；同时尊重系统设置。</small></span><input id="ui01ReduceMotion" type="checkbox" /></label>
+              <p id="ui01AppearanceStatus" role="status"></p>
+            </section>
             <section class="panel settings-safety-panel">
               <div class="panel-header">
                 <div>
@@ -553,9 +578,11 @@
             </section>
           </div>
         </section>
+        <footer class="ui01-footer"><span><i data-lucide="folder"></i>备份文件夹 <b id="ui01FooterPath">正在读取</b></span><span id="ui01FooterStatus" role="status">等待扫描</span><small>Codex Link 2.2 Beta</small></footer>
       </main>
     </div>
 
+    <div id="ui01Error" class="ui01-error" role="alert" hidden><span></span><button type="button" aria-label="关闭错误提示">关闭</button></div>
     <div class="modal-backdrop" id="folderPickerModal" hidden>
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="folderPickerTitle">
         <div class="modal-header">
@@ -569,6 +596,7 @@
       </section>
     </div>
 
-    <script src="/app.js?v=20260813-2"></script>
+    <script src="/ui01.js?v=2.2.0"></script>
+    <script src="/app.js?v=2.2.0"></script>
   </body>
 </html>

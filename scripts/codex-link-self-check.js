@@ -173,9 +173,11 @@ async function runRuntimeChecks(serverSource) {
   const fixture = makeFixture();
   const port = 46000 + Math.floor(Math.random() * 1000);
   const baseUrl = `http://127.0.0.1:${port}`;
+  const fixtureConfig = path.join(fixtureRoot, "config.json");
+  fs.writeFileSync(fixtureConfig, JSON.stringify({codexHome: fixture.codexHome, cloudDir: fixture.backupDir}));
   serverProcess = spawn(process.execPath, [path.join(ROOT, "server.js")], {
     cwd: ROOT,
-    env: { ...process.env, CODEX_LINK_PORT: String(port), CODEX_HOME: fixture.codexHome },
+    env: { ...process.env, CODEX_LINK_PORT: String(port), CODEX_LINK_CONFIG_FILE: fixtureConfig },
     stdio: ["ignore", "pipe", "pipe"]
   });
   await waitForServer(baseUrl);
@@ -354,7 +356,7 @@ async function runRuntimeChecks(serverSource) {
 function runStaticChecks() {
   const html = read("public/index.html");
   const app = read("public/app.js");
-  const css = read("public/styles.css");
+  const css = read("public/styles.css") + "\n" + read("public/ui01.css");
   const server = read("server.js");
   const operationWorker = read("lib/operation-worker.js");
   const visibleSource = `${html}\n${app}`;
@@ -380,7 +382,7 @@ function runStaticChecks() {
   const snapshotVisible = /[>"'`]([^<>"'`]{0,30}快照|快照[^<>"'`]{0,30})[<"'`]/.test(visibleSource);
   addCheck({ id: "value.copy-boundary", dimension: "productValue", title: "用户文案遵守备份与恢复点边界", points: 2, pass: forbidden.length === 0 && !snapshotVisible, evidence: forbidden.length || snapshotVisible ? `发现禁用表达：${[...forbidden, ...(snapshotVisible ? ["快照"] : [])].join("、")}` : "未发现资产矩阵、云端产品或快照式用户文案" });
 
-  const personalMemoryIndependent = /title:\s*["']个人记忆["']/.test(app) && /tone:\s*["']memory["']/.test(app);
+  const personalMemoryIndependent = /key:\s*["']memories["'],\s*label:\s*["']个人记忆["']/.test(app) && app.includes('sectionByKey("memories")');
   addCheck({ id: "ia.memory-independent", dimension: "informationArchitecture", title: "个人记忆保持独立资产", points: 2, pass: personalMemoryIndependent, evidence: personalMemoryIndependent ? "个人记忆具有独立模块" : "个人记忆独立性证据不足" });
 
   const advancedCategories = ["项目记录", "对话记录", "Skills", "MCP", "插件", "本地工具", "API 接入记录", "规则与配置"];
@@ -432,7 +434,7 @@ function runStaticChecks() {
     && !visibleSource.includes("备份验证")
     && !visibleSource.includes("已验证");
   addCheck({ id: "trust.availability-copy", dimension: "trustAndSafety", title: "可用性检查不冒充完整性验证", points: 2, pass: availabilityCopy, evidence: availabilityCopy ? "状态仅表达文件夹与路径可读取或需确认" : "发现超出当前能力的验证表达" });
-  const actionCopy = ["等待生成", "正在创建", "扫描中", "扫描失败", "恢复计划尚未生成"].every((term) => app.includes(term) || html.includes(term));
+  const actionCopy = ["正在读取备份内容", "正在创建", "扫描中", "扫描失败", "恢复计划尚未生成"].every((term) => app.includes(term) || html.includes(term));
   addCheck({ id: "usability.feedback", dimension: "usability", title: "关键流程具备等待、进行、失败反馈", points: 2, pass: actionCopy, evidence: actionCopy ? "创建、扫描和恢复均有状态文案" : "关键反馈状态不完整" });
 
   const safetyCopy = visibleSource.includes("API Key 与登录凭据重新配置") && visibleSource.includes("密钥与登录凭据不会写入备份");
@@ -466,15 +468,12 @@ function runStaticChecks() {
     && css.includes(".nav-item):not(:disabled):hover");
   addCheck({ id: "visual.control-states", dimension: "visualExperience", title: "全局按钮状态与玻璃动效完整", points: 1, pass: states, evidence: states ? "hover、active、focus-visible、disabled、玻璃扫光和边缘流光均覆盖侧栏按钮" : "按钮状态或侧栏动效不完整" });
 
-  const screenshots = [
-    ["overview", "32-home-final-1440x1000.png", 1440, 1000], ["backup", "33-backup-final-1440x1000.png", 1440, 1000],
-    ["restore", "34-restore-final-1440x1000.png", 1440, 1000], ["manager", "35-manager-final-1440x1000.png", 1440, 1000],
-    ["settings", "36-settings-final-1440x1000.png", 1440, 1000], ["overview", "37-home-final-1280x720.png", 1280, 720],
-    ["backup", "38-backup-final-1280x720.png", 1280, 720], ["restore", "39-restore-final-1280x720.png", 1280, 720],
-    ["manager", "40-manager-final-1280x720.png", 1280, 720], ["settings", "41-settings-final-1280x720.png", 1280, 720]
-  ];
-  const screenshotRoot = path.join(ROOT, "ui-verification", "flow-audit-20260813");
-  const sourceMtime = Math.max(...["public/index.html", "public/app.js", "public/styles.css"].map((file) => fs.statSync(path.join(ROOT, file)).mtimeMs));
+  const screenshots = [1440,1280,1365,1276].flatMap((width,index) => {
+    const height = [1000,720,1170,1136][index];
+    return ["overview","backup","restore","manager","settings"].map(view => [view, (width === 1440 ? "" : width+"x"+height+"/") + view + ".png", width, height]);
+  });
+  const screenshotRoot = path.join(ROOT, "ui-verification", "ui01-2.1");
+  const sourceMtime = Math.max(...["public/index.html", "public/app.js", "public/styles.css", "public/ui01.css", "public/ui01.js"].map((file) => fs.statSync(path.join(ROOT, file)).mtimeMs));
   const screenshotResults = screenshots.map(([, name, width, height]) => {
     const file = path.join(screenshotRoot, name);
     if (!fs.existsSync(file)) return { name, pass: false, reason: "缺失" };
@@ -483,7 +482,7 @@ function runStaticChecks() {
     return { name, pass: size?.width === width && size?.height === height && fresh, reason: !fresh ? "早于当前 UI 代码" : `${size?.width}x${size?.height}` };
   });
   const screenshotPass = screenshotResults.every((item) => item.pass);
-  addCheck({ id: "visual.desktop-evidence", dimension: "visualExperience", title: "五页双尺寸截图与当前代码同步", points: 1, pass: screenshotPass, evidence: screenshotPass ? "10 张桌面验收截图尺寸正确且为最新" : screenshotResults.filter((item) => !item.pass).map((item) => `${item.name}: ${item.reason}`).join("；") });
+  addCheck({ id: "visual.desktop-evidence", dimension: "visualExperience", title: "五页四尺寸截图与当前代码同步", points: 1, pass: screenshotPass, evidence: screenshotPass ? "20 张桌面验收截图尺寸正确且为最新" : screenshotResults.filter((item) => !item.pass).map((item) => `${item.name}: ${item.reason}`).join("；") });
 
   const packageJson = JSON.parse(read("package.json"));
   const macEvidence = validateMacosReleaseEvidence(
